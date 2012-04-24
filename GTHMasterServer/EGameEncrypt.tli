@@ -1,0 +1,35 @@
+// Created by Microsoft (R) C/C++ Compiler Version 12.00.8168.0 (f52b6645).
+//
+// EGameEncrypt.tli
+//
+// Wrapper implementations for Win32 type library EGameEncrypt.dll
+// compiler-generated file created 03/08/05 at 01:57:14 - DO NOT EDIT!
+
+#pragma once
+
+//
+// interface IEGameEncrypt wrapper method implementations
+//
+
+inline HRESULT IEGameEncrypt::Encode ( _bstr_t org, BSTR * dest ) {
+    HRESULT _hr = raw_Encode(org, dest);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _hr;
+}
+
+inline HRESULT IEGameEncrypt::Decode ( _bstr_t org, BSTR * dest ) {
+    HRESULT _hr = raw_Decode(org, dest);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _hr;
+}
+
+//
+// interface IRpiemd160 wrapper method implementations
+//
+
+inline _bstr_t IRpiemd160::Hash ( _bstr_t org ) {
+    BSTR _result;
+    HRESULT _hr = raw_Hash(org, &_result);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _bstr_t(_result, false);
+}

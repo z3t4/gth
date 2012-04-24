@@ -1,0 +1,2301 @@
+#include "../global.h"
+
+i3socket_t msSocket;	// 서버 서비스 소켓 ( 일반 클라이언트와 통신 )
+i3socket_t localSocket;	// 서버 로컬 소켓 ( 게임서버와 통신 )
+
+extern unsigned int g_netTime;
+extern i3sizebuf_t netMessage; // 메시지 버퍼
+extern i3packet_t packetBuffer;	// 패킷 = packet header + 데이타
+
+//////////////////////////////////////////////////////////////////////////
+// for packet count
+extern int				totalPacketsSend;				// 전체 패킷 보낸 횟수
+extern int				totalPacketsReceived;			// 전체 패킷 받은 횟수
+
+extern int				packetsSent;					// reliable로 보낸 패킷
+extern int				packetsReceived;				// reliable로 받은 패킷
+extern int				packetsReSent;					// reliable을 재전송한 횟수
+extern int				packetsDropCount;				// reliable을 드롭한 횟수
+extern int				packetsDupCount;				// reliable을 skip한 횟수
+extern int				packetsAckSent;					// ack를 보낸 패킷
+extern int				packetsAckReceived;				// ack를 받은 회수
+extern int				un_packetsSent;					// un_reliable로 보낸 패킷
+extern int				un_packetsReceived;				// un_reliable로 받은 패킷
+extern int				un_packetsDropCount;			// un_reliable을 드롭한 횟수
+//////////////////////////////////////////////////////////////////////////
+
+int GTH_Network_Startup()
+{
+	if ( !NET_OpenNetwork() )  
+	{
+		//GTH_LogFile_Write("네트워크 초기화를 할 수 없습니다.");
+		MessageBox(g_hWnd, "네트워크 초기화를 할 수 없습니다.", "에러", MB_OK); 
+		return 0;
+	}
+
+	// 서비스 소켓 설정
+	if ( !NET_OpenSocketForServer( &msSocket, g_config.serviceIP, g_config.servicePort) )
+	{
+		MessageBox(g_hWnd, "마스터서버 소켓을 오픈할 수 없습니다.", "에러", MB_OK); 
+		return 0;
+	}
+
+	// 로컬 소켓 설정 - 게임서버 통신용
+	if ( !NET_OpenSocketForServer( &localSocket, g_config.localIP, g_config.localPort, SocketType_Unreliable) )
+	{
+		MessageBox(g_hWnd, "마스터서버 로컬 소켓을 오픈할 수 없습니다.", "에러", MB_OK); 
+		return 0;
+	}
+	
+	// 서버용 - 송/수신 쓰레드 생성
+#ifdef _USE_SENDING_THREAD
+	if ( !NET_CreateSendingThread() )
+	{
+		char msg[256];
+		sprintf(msg,"송신 쓰레드 생성 실패(ErrorCode:%d)", GetLastError());
+		MessageBox(g_hWnd, msg, "에러", MB_OK); 
+		return 0;
+	}	
+#endif
+
+#ifdef _USE_RECEIVING_THREAD
+	if ( !NET_CreateReceivingThread() )
+	{
+		char msg[256];
+		sprintf(msg,"수신 쓰레드 생성 실패(ErrorCode:%d)", GetLastError());
+		MessageBox(g_hWnd, msg, "에러", MB_OK); 
+		return 0;
+	}	
+#endif
+
+	// 2003-05-23
+	strcpy( g_hostName, NET_GetHostName() );
+
+	Sleep(100);	// 임시설정 : 네트워크(쓰레드) 준비를 위한 Warming Up Delay 
+
+	return 1;
+}
+
+void GTH_Network_Shutdown()
+{
+	// 송/수신 쓰레드 제거
+#ifdef _USE_SENDING_THREAD
+	NET_DestroySendingThread();
+#endif
+
+#ifdef _USE_RECEIVING_THREAD
+	NET_DestroyReceivingThread();
+#endif
+
+	NET_CloseSocket(&localSocket);
+	NET_CloseSocket(&msSocket);
+	NET_CloseNetwork();
+}
+
+void GTH_InitMasterServer()
+{
+	int i;
+
+    for (i=0; i<MAX_CLIENTS; i++)
+	{
+		memset(&g_clients[i], 0, sizeof(i3client_t));
+		g_clients[i].active = false;
+	}
+
+	// initialize debugging variables
+	totalPacketsSend		=	0;
+	totalPacketsReceived	=	0;
+	packetsSent				=	0;			// reliable로 보낸 패킷
+	packetsReceived			=	0;			// reliable로 받은 패킷
+	packetsReSent			=	0;			// reliable을 재전송한 횟수
+	packetsDropCount		=	0;			// reliable을 드롭한 횟수
+	packetsDupCount			=	0;			// reliable을 skip한 횟수
+	packetsAckSent			=	0;			// ack를 보낸 패킷
+	packetsAckReceived		=	0;			// ack를 받은 회수
+	un_packetsSent			=	0;			// un_reliable로 보낸 패킷
+	un_packetsReceived		=	0;			// un_reliable로 받은 패킷
+	un_packetsDropCount		=	0;			// un_reliable을 드롭한 횟수
+
+}
+
+
+// 패킷을 전송받아 해당 클라이언트의 메시지버퍼를 설정한다
+int	GTH_Network_GetMessage(i3socket_t *sock)
+{
+	struct sockaddr_in	readaddr;
+	int					clientIdx;
+	int					length;
+	int					ret = 0;
+	int					socket;	// listen socket
+	int					serverGroupIdx;
+
+//	g_netTime = NET_GetNetTime();	// g_netTime 설정
+
+//	memset(&packetBuffer, 0x00, sizeof(i3packet_t));
+	length = NET_ReadPacket(&socket, (byte *)&packetBuffer, &readaddr);
+
+	// 전송받은 데이터 크기에 대한 유효성 검사
+	if (length == 0 || length < NET_HEADERSIZE || length > NET_DATAGRAMSIZE ) 
+	{
+		return PacketAnalysis_None;
+	}
+	
+	// 무엇인가 전송받은 데이터가 있음
+	if ( socket == msSocket.socket )
+	{
+		clientIdx = GTH_FindClientWithAddr(&readaddr); // 메시지를 보낸 클라이언트
+		if (clientIdx == -1) // 새로운 사용자가 접속
+		{
+			if ( !GTH_IsValidPacketForNewClient(&packetBuffer) ) // 새 클라이언트를 생성할 유효 패킷인지를 검사
+				return 1; //0; // skip this message
+			
+			clientIdx = GTH_CreateClient(&readaddr);
+			if (clientIdx < 0 || clientIdx >= MAX_CLIENTS ) // 더이상 client를 추가할 수 없다.
+				return 1; //0;// skip this message
+		}
+		
+		g_curClient = &g_clients[clientIdx];
+		
+		ret = NET_ControlPacket(&g_curClient->sock, &packetBuffer);	 
+	}
+	else if ( socket == localSocket.socket )
+	{
+		serverGroupIdx = GTH_FindServerGroupWithAddr( &readaddr );
+		if ( serverGroupIdx == -1 )	// 새로운 맴버 접속
+		{
+			serverGroupIdx = GTH_GetServerGroupIdx( &packetBuffer );
+			
+			if ( serverGroupIdx == -1 ) return 1; // skip this message	// 비정상적인 메시지
+			GTH_AddToServerGroup(serverGroupIdx, &readaddr);
+		}
+		
+		ret = NET_ControlPacket(&g_serverGroup[serverGroupIdx].sock, &packetBuffer);	 
+	}
+
+	return ret;
+}
+
+
+// 패킷을 전송받아 해당 클라이언트의 메시지버퍼를 설정한다
+/*int	GTH_Network_GetMessage(i3socket_t *sock)
+{
+	struct sockaddr_in readaddr;
+	int clientIdx;
+	int	length;
+	int	ret = 0;
+	int socket;	// listen socket
+	int serverGroupIdx;
+
+	g_netTime = NET_GetNetTime();	// g_netTime 설정
+
+	length = NET_ReadPacket(&socket, (byte *)&packetBuffer, &readaddr);
+
+	// 전송받은 데이타가 없거나 메시지 길이가 헤더보다 작은 경우
+	if (length == 0 || length < NET_HEADERSIZE ) 
+	{
+		packetBuffer.length = 0;
+	}
+
+	if ( socket == msSocket.socket )
+	{
+		clientIdx = GTH_FindClientWithAddr(&readaddr); // 메시지를 보낸 클라이언트
+		if (clientIdx == -1) // 새로운 사용자가 접속
+		{
+			if ( !GTH_IsValidPacketForNewClient(&packetBuffer) ) // 새 클라이언트를 생성할 유효 패킷인지를 검사
+				return 1; //0; // skip this message
+
+			clientIdx = GTH_CreateClient(&readaddr);
+			if (clientIdx < 0 || clientIdx >= MAX_CLIENTS ) // 더이상 client를 추가할 수 없다.
+				return 1; //0;// skip this message
+		}
+
+		g_curClient = &g_clients[clientIdx];
+
+		ret = NET_ControlPacket(&g_curClient->sock, &packetBuffer);	 
+	}
+	else if ( socket == localSocket.socket )
+	{
+		serverGroupIdx = GTH_FindServerGroupWithAddr( &readaddr );
+		if ( serverGroupIdx == -1 )	// 새로운 맴버 접속
+		{
+			serverGroupIdx = GTH_GetServerGroupIdx( &packetBuffer );
+
+			if ( serverGroupIdx == -1 ) return 1; // skip this message	// 비정상적인 메시지
+			GTH_AddToServerGroup(serverGroupIdx, &readaddr);
+		}
+
+		ret = NET_ControlPacket(&g_serverGroup[serverGroupIdx].sock, &packetBuffer);	 
+	}
+
+	return ret;
+}*/
+
+
+void GTH_CheckProblemSocket()
+{
+	int idx;
+
+	for(idx=0; idx < MAX_CLIENTS; idx++)
+	{
+		if ( !g_clients[idx].active ) continue;
+
+		// ack를 못받은 패킷은 새로 보냄
+		NET_ControlSendBank(&(g_clients[idx].sock));
+
+		// 20초동안의 수신을 check, ping을 보내므로 체크할 수 있음.
+		if( !NET_CheckSockProblem( &g_clients[idx].sock, 5 * 60 * 1000) )
+		{
+			g_logSystem->Write("%s님이 비정상적으로 종료합니다.", g_clients[idx].id);
+			GTH_RemoveClient( &g_clients[idx]);
+			continue;
+		}
+
+
+		// DISCONNECT_WAITTIME(60000) 동안 클라이언트(사용자만) 의 입력이 없을 시
+		if(g_netTime - g_clients[idx].sock.lastReceiveTime >= DISCONNECT_WAITTIME )  
+		{
+			GTH_SendMessage_ReliablePing( &g_clients[idx].sock );
+			continue;
+		}
+	}
+} 
+
+
+
+
+
+int GTH_MasterServer()
+{
+	int command;
+	int state;
+
+	g_netTime = NET_GetNetTime();
+
+	GTH_CheckProblemSocket();
+
+	while (1)
+	{
+		state = GTH_Network_GetMessage(&msSocket); // 수신한 패킷을 메시지 버퍼로 설정
+
+		if (state < PacketAnalysis_Skip )  // -1: network error, 0: no message, 1:ack or skipor logical error, 2: unreliable, 3:reliable
+			return 0;    // terminal
+
+		if (state != PacketAnalysis_Start ) // ack
+			continue;   
+			
+		MSG_BeginReading();
+		command = MSG_ReadByte();
+
+		
+
+		switch(command){
+			case GSC_SERVERGROUPINFO:
+			case CC_CONNECT_MASTERSERVER:
+			case CC_REQUEST_LOGIN:
+			case CC_REQUEST_SERVERGROUP:
+			case CC_REQUEST_GAMEDATA:
+			case CC_REQUEST_READYCREATE:
+				break;
+			default:
+				Sleep(0);
+				break;
+		}
+
+
+		switch (command)
+		{
+		case GSC_SERVERGROUPINFO :  // 게임의 상태 정보(접속한 클라이언트 수, alive signal)
+			GTH_ServerGroupInfo();
+			break;
+
+		case GSC_DROPSERVERGROUP :  // 게임의 상태 정보(접속한 클라이언트 수, alive signal)
+			GTH_DropServerGroup();
+			break;
+
+		case CC_CONNECT_MASTERSERVER:    // 클라이언트의 연결 요청
+			GTH_ConnectMasterServer();
+			break;
+
+		case CC_DISCONNECT_MASTERSERVER: // 클라이언트 종료 알림
+			GTH_DisconnectMasterServer();
+			break;
+
+		case CC_REQUEST_SERVERGROUP:     // 게임서버 리스트 요청
+			GTH_SendMessage_GameServerGroup();
+			break;
+
+		case CC_REQUEST_LOGIN:     // 클라이언트의 로그인
+			GTH_RequestLogin();
+			break;
+
+		case CC_REQUEST_GAMEDATA:     // 게임데이터 요청
+			GTH_RequestGameData();
+			break;
+
+		case CC_REQUEST_GAMESERVERADDR:
+			GTH_RequestGameServerAddr();
+			break;
+
+		case CC_REQUEST_READYCREATE:
+			GTH_RequestReadyCreate();
+			break;
+
+		case CC_REQUEST_CREATECHARACTER:
+			GTH_RequestCreateCharacter();
+			break;
+
+		case CC_REQUEST_DELETECHARACTER:
+			GTH_RequestDeleteCharacter();
+			break;
+
+		case CC_REQUEST_CHECKCHARNAME:
+			GTH_RequestCheckCharacterName();
+			break;
+
+		//계정 스토리지 2004-12-03 queen
+		case CC_REQUEST_LOADCHARACTER_SLOT:
+			GTH_LoadCharacterSlot();
+			break;
+
+		//계정 스토리지 2004-12-03 queen
+		case CC_REQUEST_SAVECHARACTER_SLOT:
+			GTH_SaveCharacterSlot();
+			break;
+
+		// skip 처리할 메시지
+		case GC_RELIABLE_PING:
+		case GC_UNRELIABLE_PING:
+			break;
+
+		case CC_MONITOR:
+			GTH_ProcessMessage_Monitor();
+			break;
+
+		default :
+			g_logSystem->Write("명령(프로토콜)이 일치하지 않습니다.(Command:%x)", command);
+			if ( g_curClient != NULL ) 
+				g_logSystem->Write("프로토콜 불일치 추정 사용자: %s, IP: %s", g_curClient->id, NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));
+			break;
+		}
+	}
+	return 1;
+}
+
+
+// 2003-05-21 동규
+int GTH_ServerGroupInfo() 
+{
+	int idx;
+	int i, j;
+	int activeServerNumber;
+	
+	activeServerNumber = 0;
+
+	idx = MSG_ReadByte();	// 그룹 번호
+	
+	// check invalid value.
+	if (idx >= g_config.serviceServerGroupNumber || idx < 0) return 0;
+
+	// clear
+	//memset( &g_serverGroup[idx], 0, sizeof(serverGroup_t) );
+	//g_serverGroup[idx].idx = idx;
+	//g_serverGroup[idx].active = true;
+
+	g_serverGroup[idx].updateTime = g_globalTime;
+	strcpy( g_serverGroup[idx].name, MSG_ReadString() );
+	strcpy( g_serverGroup[idx].DSN, MSG_ReadString() );// 2003-05-21 동규
+
+	g_serverGroup[idx].totalClient = 0;
+//	g_serverGroup[idx].memberServerNumber = MSG_ReadByte();
+	for (i=0; i < MAX_MEMBER_SERVER; i++)
+	{
+		g_serverGroup[idx].memberServer[i].idx = i;
+		g_serverGroup[idx].memberServer[i].active = MSG_ReadByte();
+		if ( !g_serverGroup[idx].memberServer[i].active ) continue;
+
+		activeServerNumber ++ ;
+
+		strcpy( g_serverGroup[idx].memberServer[i].name, MSG_ReadString() );// 2003-05-29 동규
+		strcpy( g_serverGroup[idx].memberServer[i].hostName, MSG_ReadString() );// 2003-05-21 동규
+		strcpy( g_serverGroup[idx].memberServer[i].serviceIP, MSG_ReadString() );
+		g_serverGroup[idx].memberServer[i].servicePort = MSG_ReadShort();
+		strcpy( g_serverGroup[idx].memberServer[i].localIP, MSG_ReadString() );// 2003-05-21 동규
+		g_serverGroup[idx].memberServer[i].localPort = MSG_ReadShort();// 2003-05-21 동규
+		g_serverGroup[idx].memberServer[i].worldNumber = MSG_ReadByte();
+		for (j=0; j < g_serverGroup[idx].memberServer[i].worldNumber; j++ )
+			g_serverGroup[idx].memberServer[i].worldList[j] = MSG_ReadByte();
+		g_serverGroup[idx].memberServer[i].clientNumber = MSG_ReadShort();
+		g_serverGroup[idx].memberServer[i].maxClientNumber = MSG_ReadShort();// 2003-05-21 동규
+
+		g_serverGroup[idx].totalClient += g_serverGroup[idx].memberServer[i].clientNumber;
+	}
+	
+	if ( g_serverGroup[idx].totalClient > g_serverGroup[idx].maxTotalClient )
+		g_serverGroup[idx].maxTotalClient = g_serverGroup[idx].totalClient;
+
+	if ( activeServerNumber > g_serverGroup[idx].memberServerNumber )	// 서버그룹에서 가동되는 서버와 총 서버수
+		g_serverGroup[idx].memberServerNumber = activeServerNumber;
+
+	// 추가
+	GTH_CalculateConcurrentClients();
+	return 1;
+}
+
+
+
+int GTH_DropServerGroup() 
+{
+	int idx;
+	
+	idx = MSG_ReadByte();	// 그룹 번호
+
+	g_serverGroup[idx].active = false;
+	g_serverGroup[idx].memberServerNumber = 0;
+
+	return 1;
+}
+
+
+void GTH_ConnectMasterServer(void)
+{
+	char version[VERSIONSTRING+1];	
+	strncpy(version, MSG_ReadString(),VERSIONSTRING); version[VERSIONSTRING]=NULL;
+
+
+	// 모니터링 클라이언트 여부
+	if(0 == stricmp(version, g_config.monitorVersion))
+	{
+		// 동시 접속 최대 인원수 초과 검사
+		if ( g_clientNumber >= g_config.maxServiceClientNumber )
+		{
+			GTH_SendMessage_RejectClient( 1 );
+			// 클라이언트 접속 해제 처리
+			GTH_RemoveClient( g_curClient );
+		}
+
+		g_curClient->isMonitor = true;
+		GTH_SendMessage_AcceptClient();
+		g_logSystem->Write("서버 모니터링 클라이언트가 접속을 시도합니다.(IP:%s)", 
+			               NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));		
+		return;
+	}
+
+
+	if(NULL != strstr(version,"MONITOR"))
+	{
+		g_logSystem->Write("이전 버전 모니터링 툴(Ver: %s)로 접속을 시도 했습니다.(%s)", version, NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));
+		GTH_SendMessage_RejectClient( 0 );
+		// 클라이언트 접속 해제 처리
+		GTH_RemoveClient( g_curClient );
+		return;
+	}
+
+
+	char subVersion[VERSIONSTRING+1];
+	strncpy(subVersion, MSG_ReadString(),VERSIONSTRING); subVersion[VERSIONSTRING]=NULL;
+	
+	// 2004-05-19 13:29, Jongnam
+	// check connect ip
+	switch(CheckConnectionIP( inet_ntoa( g_curClient->sock.addr.sin_addr))){
+		case ConnectionReject://무조건 차단
+			GTH_SendMessage_RejectClient( 2 );
+			GTH_RemoveClient( g_curClient );
+			return;
+
+		case ConnectionFilterTest:// 기존 방법			
+			// 테스터 차단
+			if(g_filterYn){
+				if(0 != stricmp(subVersion, "DEVELOPER")){
+					GTH_SendMessage_RejectClient( 2 );
+					// 클라이언트 접속 해제 처리
+					GTH_RemoveClient( g_curClient );
+					return;
+				}
+			}			
+			break;
+		case ConnectionAccept://무조건 허용			
+			break;		
+	}
+
+	// 버전을 체크
+	if(0 != stricmp(g_config.gameVersion, version)){
+		GTH_SendMessage_RejectClient( 0 );
+		// 클라이언트 접속 해제 처리
+		GTH_RemoveClient( g_curClient );
+		return;
+	}
+
+	// 동시 접속 최대 인원수 초과
+	if(g_clientNumber >= g_config.maxServiceClientNumber )
+	{
+		GTH_SendMessage_RejectClient( 1 );
+		// 클라이언트 접속 해제 처리
+		GTH_RemoveClient( g_curClient );
+	}
+	
+	// 2004-07-06, Jongnam : 예전 클라리언트로 접속 못하게 막음.
+	//인자가 3인경우 클라이언트에서 MSC_ACCEPTCLINET를 받은것과 같이 처리 하게 되어 있다.
+	GTH_SendMessage_RejectClient( 3 );
+	return;
+}
+
+
+
+
+
+
+
+
+void GTH_SendMessage_ReliablePing( i3socket_t *sock )
+{
+	MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, GC_RELIABLE_PING);
+		NET_SendMessage(sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+void GTH_SendMessage_UnreliablePing( i3socket_t *sock )
+{
+	MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, GC_UNRELIABLE_PING);
+		NET_SendUnreliableMessage(sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+void GTH_SendMessage_AcceptClient()
+{
+	MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_ACCEPTCLIENT);
+		NET_SendMessage(&g_curClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+void GTH_SendMessage_RejectClient(int reason)
+{
+	MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REJECTCLIENT);
+		switch ( reason )
+		{
+		case 0 :	// 버전 불일치
+			MSG_WriteByte(&netMessage, reason);
+			break;
+		case 1:		// 동시접속 최대 인원 초과
+			MSG_WriteByte(&netMessage, reason);
+			break;
+		case 2:		// 서브 버전 불일치 ( 테스터 차단 )
+			MSG_WriteByte(&netMessage, reason);
+			MSG_WriteString(&netMessage, g_filterMessage[g_filterIdx]);		// 접속거부 이유
+			break;
+		case 3 :
+			MSG_WriteByte(&netMessage, 0);
+			MSG_WriteByte(&netMessage, 1);
+			break;
+		}
+		
+		NET_SendMessage(&g_curClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+int GTH_DisconnectMasterServer() // 게임서버의 종료처리
+{
+	int success;
+	
+	success = GTH_RemoveClient( g_curClient );
+
+	return 1;
+}
+
+int GTH_AddToServerGroup(int serverGroupIdx, struct sockaddr_in *addr)
+{
+	serverGroup_t *serverGroup;
+
+//	if (serverGroupIdx >= MAX_SERVER_GROUP || serverGroupIdx < 0) return -1;
+	if (serverGroupIdx >= g_config.serviceServerGroupNumber || serverGroupIdx < 0) return -1;
+
+	serverGroup = &g_serverGroup[serverGroupIdx];
+
+	if ( serverGroup->active ) return -1;	// 이미 사용중인 서버번호
+
+	serverGroup->idx = serverGroupIdx;
+	serverGroup->active = true;
+
+	NET_InitSocket(&serverGroup->sock, addr, localSocket.socket, SocketType_Unreliable);
+
+	return serverGroupIdx;
+}
+
+int GTH_GetServerGroupIdx(i3packet_t *p)
+{
+	int command;
+	int	idx;
+
+	if ( !NET_PreviewMessage(p) ) return -1;
+
+	MSG_BeginReading();
+	command = MSG_ReadByte();
+
+	if (command != GSC_SERVERGROUPINFO) return -1;
+
+	idx = MSG_ReadByte();
+
+	return idx;
+}
+
+int GTH_FindServerGroupWithAddr(struct sockaddr_in *addr)
+{
+	serverGroup_t *serverGroup;
+	int i;
+
+	serverGroup = &g_serverGroup[0];
+//	for (i = 0; i < MAX_SERVER_GROUP; i++, serverGroup++)
+	for (i = 0; i < g_config.serviceServerGroupNumber; i++, serverGroup++)
+	{
+		if (!serverGroup->active)
+			continue;
+
+		if (NET_AddrCompare((struct sockaddr *)addr, (struct sockaddr *)&serverGroup->sock.addr) == 0)
+			return i;
+	}
+	
+	return -1; // 해당 주소를 가진 서버가 없는 경우
+}
+
+int GTH_IsValidPacketForNewClient(i3packet_t *p)
+{
+	int command;
+
+	NET_PreviewMessage( p );
+
+	MSG_BeginReading();
+	command = MSG_ReadByte();
+
+	if (command != CC_CONNECT_MASTERSERVER) return false;
+
+	return true;
+}
+
+int GTH_FindClientWithAddr(struct sockaddr_in *addr)
+{
+	i3client_t *client;
+	int i;
+
+	client = &g_clients[0];
+	for (i = 0; i < MAX_CLIENTS ; i++, client++) 
+	{
+		if (!client->active)
+			continue;
+
+		if (NET_AddrCompare((struct sockaddr *)addr, (struct sockaddr *)&client->sock.addr) == 0)
+			return i;
+	}
+
+	return -1;
+}
+
+int GTH_CreateClient(struct sockaddr_in *addr)
+{
+	int i, j, k;
+	i3client_t *client;
+
+	client = &g_clients[0];
+	
+	
+	for (i=0; i<MAX_CLIENTS; i++, client++)
+	{
+		if ( !client->active ) break;
+	}	
+	
+
+	if (i >= MAX_CLIENTS) 
+	{
+		g_logSystem->Write("치명적오류: 클라이언트 한계 초과 생성");
+		g_logSystem->Update();
+		return -1;
+	}
+
+	// 2004-07-07, Jongnam
+	// memset하기 전에 packetmap를 초기화해주어야함!
+	NET_InitPacketMap( &client->sock );	
+
+	// clear
+	memset(client, 0, sizeof(i3client_t));	
+
+	client->idx = i;
+	client->active = true;
+	client->isMonitor = false;
+	client->isComplete = false;
+	client->isSuccessLogin = false;
+
+	client->dbCheckAccount = -1;
+
+	NET_InitSocket(&client->sock, addr, msSocket.socket, SocketType_Reliable);
+	g_clientNumber++;
+
+	if ( g_clientNumber > g_maxClientNumber ) 
+	{
+		g_maxClientNumber = g_clientNumber;
+		// 2003-09-21 동규
+		if ( g_config.serverNo == 0 )	// 마스터서버 0번만 로그 생성
+		{
+			g_logSystem->Write("전체 서버군 최대 동접자 갱신: %d명", g_maxClientNumber);
+		}
+	}
+
+	// 게임데이터 정보 초기화
+	client->dataNumber = 0;
+	for (j=0; j<MAX_CHARACTER_DATA; j++)
+	{
+		memset(&client->data[j], 0, sizeof(characterData_t) );
+		for (k=0; k<MAX_NUMBER_OF_OWNITEM; k++)
+			client->data[j].item[k].itemTableIdx = -1;
+
+		// 2003-06-16 동규
+		for (k=0; k<MAX_NUMBER_OF_SKILL; k++)
+			client->data[j].skill[k].tableIdx = -1;
+
+		for (k=0; k<MAX_NUMBER_OF_SKILL_VARIABLE; k++)
+			client->data[j].skillVariable[k] = -1;
+
+		// 2003-06-14 동규
+		for (k=0; k<MAX_NUMBER_OF_HOTKEY; k++)
+			client->data[j].hotkeyIdx[k] = -1;
+
+		// 2003-09-23 동규
+		for (k=0; k<MAX_COUNT_QUEST_VARIABLE; k++)
+		{
+			client->data[j].questVar[k].iVar = 65280;	// 0, -1, 00
+		}
+
+		// 2003-08-27 동규
+		for (k=0; k<MAX_COUNT_QUEST_INVENTORY; k++)
+		{
+			client->data[j].questInventory[k].iItem = 65535;	// -1, 00
+		}
+
+		// 2003-08-27 동규
+		for (k=0; k<MAX_COUNT_QUEST_STATUS; k++)
+		{
+			client->data[j].questStatus[k].idx = k;
+			client->data[j].questStatus[k].questIdx = -1;
+		}
+
+		// 2003-11-24 동규
+		for (k=0; k<MAX_PRECOCITY_SIZE; k++)
+			client->data[j].precocityInventory[k] = -1;
+
+		// 주의 캐릭터 데이터 초기화 한 곳 더 --> GTH_InitCharacterData 에도 추가가 ( 수정 필요 )
+	}
+
+	return client->idx;
+}
+
+int GTH_RemoveClient(i3client_t *client)
+{
+	if ( !client->active )	return false;
+
+	if ( client->isMonitor ) 
+	{
+		g_logSystem->Write("서버 모니터링 클라이언트가 종료했습니다.(ID:%s, IP:%s)", client->id, NET_AddrToString((struct sockaddr *)&client->sock.addr));
+	}
+	else	// 일반 클라이언트
+	{
+		if ( client->isSuccessLogin )
+		{
+	//		g_DBAccountServer->DeleteLogin( client );
+
+			if ( client->isComplete )
+			{
+				// 주의 - 여기서 deletelogin을 하지 않고 게임서버정보를 보내는 곳에서 처리함
+				g_logSystem->Write("%s님이 종료(게임서버로 접속)했습니다.", client->id);
+			}
+			else
+			{
+				g_DBAccountServer->DeleteLogin( client );
+				g_logSystem->Write("%s님이 접속 종료 했습니다.", client->id);
+			}
+		}
+	}
+
+	client->active = false;
+
+	g_clientNumber--;
+
+	return true;
+}
+
+
+#include "../Terra/CTerraCtrl.h"
+extern CTerraCtrl* gcpTerraCtrl;
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////
+// 클라이언트 <-> 마스터서버
+void GTH_RequestLogin_HiCocoon(void);
+
+void GTH_RequestLogin_Terra(void);
+void GTH_RequestLogin(void)
+{
+	if(TRUE == g_config.Hicocoon.bActive){
+		GTH_RequestLogin_HiCocoon();
+		return;
+	}
+
+	if(TRUE == g_config.TerraV2.bActive){
+		GTH_RequestLogin_Terra();
+		return;
+	}
+
+
+
+	char id[IDSTRING+1]="";
+	char password[PASSWORDSTRING+1]="";
+	
+	strncpy(id, MSG_ReadString(),IDSTRING); id[IDSTRING]=NULL;
+	strncpy(password, MSG_ReadString(),PASSWORDSTRING); password[PASSWORDSTRING]=NULL;
+	strncpy(g_curClient->id, id,IDSTRING);  g_curClient->id[IDSTRING]=NULL;
+	g_DBAccountServer->CheckAccount( g_curClient, id, password); // -1: DB error, 0: not exist, 1: Okay
+}
+
+
+
+
+// [하이코쿤] elfshadow 2005-09-29 17:50 begin
+#include "../HiCocoon/HiCocoonCtrl.h"
+extern CHiCocoonCtrl*	g_pHiCocoonCtrl;
+
+
+BOOL ProcessHiCocoonLogin(CDaumGameAuth* DaumGameAuth, char* IN_Hicocoonauth, char* OUT_ID)
+{	
+
+	if ( DaumGameAuth== NULL )
+		return FALSE;
+
+	if ( IN_Hicocoonauth == NULL)
+		return FALSE;
+
+	if ( OUT_ID == NULL)
+		return FALSE;
+
+	
+	if(FALSE == DaumGameAuth->Init (
+		_T("z6DuDLA1NcyXge3psD63Uu0o3GqpAzyBjm7pD0hNDYKefE37fNM1tVng34ejixgA") ) )
+		return FALSE;	
+
+	char GAMEID[MAX_PATH];			// 시스템이 부여한 사용자 ID
+	char UniqueID[MAX_PATH];		// 시스템이 부여한 사용자 ID
+	char Ssnhead[MAX_PATH];			// 생년월일
+	char Sex[MAX_PATH];				// 성별 
+	char NAMECHECK[MAX_PATH];		// 실명확인
+	char STATUS[MAX_PATH];			// 사용자 상태 
+	
+	// 잘못된 인증 코드 
+	if( FALSE == DaumGameAuth->SetSource(IN_Hicocoonauth) )				
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+
+	// 비정상적인 암호화 코드 
+	if ( FALSE == DaumGameAuth->GetData( "GID",  GAMEID, IDSTRING ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+	
+	
+	
+	if ( FALSE == DaumGameAuth->GetData( "UID",  UniqueID, MAX_PATH ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+	
+	
+	
+	
+	if ( FALSE == DaumGameAuth->GetData( "SEX",  Sex, MAX_PATH ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+	
+	
+	// 실명 인증이 되지 않았음
+	/*
+	if ( FALSE == DaumGameAuth->GetData( "NAMECHECK",  NAMECHECK, MAX_PATH ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::not_check_real_name);
+		return FALSE;
+	}
+	*/
+
+
+	// 실명 확인 
+	/*
+	if ( 0 == stricmp( "0", NAMECHECK) )
+	{
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::not_check_real_name);
+		return FALSE;
+	}
+	*/
+	
+
+	// 사용자 상태 (A:정회원, W:준회원, D:탈퇴신청회원, B:불량유저	
+	
+	if ( FALSE == DaumGameAuth->GetData( "STATUS",  STATUS, MAX_PATH ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+
+	
+	/*
+	if ( FALSE == DaumGameAuth->GetData( "SSNHEAD",  Ssnhead, MAX_PATH ) )
+	{
+		g_curClient->dbCheckAccount = 1;
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+		return FALSE;
+	}
+	*/
+
+	// 불량 회원 체크 
+	if ( 0 == stricmp( "B", STATUS) )
+	{
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::block_user);
+		return FALSE;
+	}	
+	
+	
+	
+	// 인증 시간 초과 ( 기본 4시간으로 셋팅)
+	if( TRUE == DaumGameAuth->IsTimeExpired() )
+	{
+		GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::over_auth_time);
+		return FALSE;	
+		//리턴 
+	}
+ 
+	strncpy(OUT_ID, GAMEID, IDSTRING);
+	return TRUE;
+
+
+
+}
+
+// [하이코쿤] elfshadow 2005-09-29 17:57 begin
+void GTH_RequestLogin_HiCocoon(void)
+{
+	char szpId[IDSTRING+1]="";		// 개발자 / 홈페이지접속 모드인지 
+	char szpPassword[CHiCocoonCtrl::tagCoCoonAUth::maxbytes_CoCoonAuth+1]="";//패스워드 / 인증코드
+	BOOL bCoCoonID=FALSE;
+
+
+	if ( g_curClient->isMonitor == FALSE)
+		bCoCoonID = MSG_ReadByte();
+
+	strncpy(szpId,MSG_ReadString(),IDSTRING);  
+	szpId[IDSTRING]=NULL;
+
+	strncpy(szpPassword, MSG_ReadString(),CHiCocoonCtrl::tagCoCoonAUth::maxbytes_CoCoonAuth);
+	szpPassword[CHiCocoonCtrl::tagCoCoonAUth::maxbytes_CoCoonAuth]=NULL;
+
+	
+	// 하이코쿤 인증 처리 
+	if(TRUE == bCoCoonID){
+		if(0 == strcmp((char*)szpId,"1")){
+			CDaumGameAuth auth;			
+			if ( FALSE == ProcessHiCocoonLogin(&auth, szpPassword, szpId) ){
+				g_logSystem->Write("loginFaild HiCocoon id=[%s] password=[%s] CoCoonAuth=[%s]", szpId, szpPassword, szpPassword);			
+				return;
+			}
+
+
+			strncpy(g_curClient->id, szpId, IDSTRING); 
+			g_curClient->id[IDSTRING]=NULL;					
+			g_logSystem->Write("login HiCocoon id=[%s] password=[%s] CoCoonAuth=[%s]", szpId, szpPassword, szpPassword);			
+			g_DBAccountServer->CheckAccountHicocoon(g_curClient, g_curClient->id);
+			return;
+		}
+		//GTH_ReplyLoginV2(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);		
+
+		return;
+	}
+	// 개발자용 접속 
+	else{
+		// 허용한 ip인지 검증 
+		if ( CheckConnectionIP( inet_ntoa( g_curClient->sock.addr.sin_addr)) == ConnectionReject )
+		{
+			// 개발자 IP가 아니며 접속 불허 IP가 접속 시도 했을경우
+			// 접속 끊어버림.			
+			g_curClient->dbCheckAccount = 1;
+			GTH_ReplyLogin_Hicocoon(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+			return;
+		}
+
+		// 개발자 모드로 접속 		
+		strncpy(g_curClient->id, szpId,IDSTRING);  g_curClient->id[IDSTRING]=NULL;
+		g_DBAccountServer->CheckAccount( g_curClient, g_curClient->id, szpPassword); // -1: DB error, 0: not exist, 1: Okay
+		g_logSystem->Write("login HiCocoon Developer id=[%s] password=[%s]", g_curClient->id, szpPassword);
+		
+	}
+	return;
+}
+// [하이코쿤] elfshadow 2005-09-29 17:57 end
+
+
+
+
+void GTH_RequestLogin_Terra(void)
+{
+	char szpId[IDSTRING+1]="";
+	char szpPassword[PASSWORDSTRING+1]="";
+	BOOL bTID=FALSE;
+
+
+	bTID = MSG_ReadByte();
+	strncpy(szpId,MSG_ReadString(),IDSTRING);  
+	szpId[IDSTRING]=NULL;
+
+	strncpy(szpPassword, MSG_ReadString(),PASSWORDSTRING);
+	szpPassword[PASSWORDSTRING]=NULL;
+
+
+	if(TRUE == bTID){
+		if(0 == strcmp((char*)szpId,"1")){
+			//password = Terra ID 
+			unsigned char EncryptTerraID[100+1];
+			if(FALSE == gcpTerraCtrl->Encrypt((unsigned char*)szpPassword,EncryptTerraID,100)){
+				g_curClient->dbCheckAccount = -1;
+				GTH_ReplyLoginV2(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+				return;
+			}
+			strncpy(g_curClient->id,szpId,IDSTRING); 
+			g_curClient->id[IDSTRING]=NULL;		
+		
+
+			g_TerraDBCtrl->SelectTmember(g_curClient,(char*)EncryptTerraID);
+			g_logSystem->Write("login Tid id=[%s] password=[%s] tid=[%s]",szpId,szpPassword,EncryptTerraID);
+			return;
+
+		}
+
+
+		GTH_ReplyLoginV2(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);		
+		return;
+	}else{
+		strncpy(g_curClient->id, szpId,IDSTRING); 
+		g_curClient->id[IDSTRING]=NULL;
+		strncpy(g_curClient->Terra.TLoginName,g_curClient->id,i3client_t::tagTerra::MaxBytesTLoginName);
+		g_curClient->Terra.TLoginName[i3client_t::tagTerra::MaxBytesTLoginName]=NULL;
+
+		g_DBAccountServer->MalCheckAccount(g_curClient);	
+		return;
+	}
+
+	return;
+}
+
+/*
+void GTH_RequestLogin_Terra(void)
+{
+	char szpId[IDSTRING+1]="";
+	char szpPassword[PASSWORDSTRING+1]="";
+	BOOL bTID=FALSE;
+
+
+	bTID = MSG_ReadByte();
+	strncpy(szpId,MSG_ReadString(),IDSTRING);  
+	szpId[IDSTRING]=NULL;
+
+	strncpy(szpPassword, MSG_ReadString(),PASSWORDSTRING);
+	szpPassword[PASSWORDSTRING]=NULL;
+
+
+	if(TRUE == bTID){
+		if(0 == strcmp((char*)szpId,"1")){
+			//password = Terra ID 
+			unsigned char EncryptTerraID[100+1];
+			if(FALSE == gcpTerraCtrl->Encrypt((unsigned char*)szpPassword,EncryptTerraID,100)){
+				g_curClient->dbCheckAccount = -1;
+				GTH_ReplyLoginV2(g_curClient,FALSE,tagMCPaket_MSC_REPLYLOGIN::enumError::unregister_user);
+				return;
+			}
+			strncpy(g_curClient->id,szpId,IDSTRING); 
+			g_curClient->id[IDSTRING]=NULL;		
+		
+			g_TerraDBCtrl->SelectTmember(g_curClient,(char*)EncryptTerraID);
+			g_logSystem->Write("login Tid id=[%s] password=[%s] tid=[%s]",szpId,szpPassword,EncryptTerraID);
+
+		}else{
+			strncpy(g_curClient->id, szpId,IDSTRING); 
+			g_curClient->id[IDSTRING]=NULL;
+
+			g_DBAccountServer->CheckAccount_Monitor( g_curClient,szpId, szpPassword); // -1: DB error, 0: not exist, 1: Okay
+			g_logSystem->Write("login not Tid id=[%s] password=[%s]",szpId,szpPassword);
+		}
+		return;
+	}else{
+		strncpy(g_curClient->id, szpId,IDSTRING); 
+		g_curClient->id[IDSTRING]=NULL;
+		strncpy(g_curClient->Terra.TLoginName,g_curClient->id,i3client_t::tagTerra::MaxBytesTLoginName);
+		g_curClient->Terra.TLoginName[i3client_t::tagTerra::MaxBytesTLoginName]=NULL;
+
+		g_DBAccountServer->MalCheckAccount(g_curClient);	
+		return;
+	}
+
+	return;
+}
+/**/
+
+
+#include "..\tagMCPacket.h"
+void GTH_ReplyLoginV2(
+		i3client_t* pClient,
+		const BOOL bSUCCESSorFAIL,
+		enum tagMCPaket_MSC_REPLYLOGIN::enumError enumErrorCode)
+{
+	// reply to connection request
+    MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REPLYLOGIN);		
+		MSG_WriteByte(&netMessage, pClient->Identify.Certification);
+		MSG_WriteByte(&netMessage, bSUCCESSorFAIL);	// return success			
+
+
+		//if ( reply > 0)
+		if(TRUE == bSUCCESSorFAIL)
+		{
+			MSG_WriteString(&netMessage,pClient->id);
+
+			//유료 스토리지 에 대한 플래그 값 전송
+			MSG_WriteByte(&netMessage, (BYTE)gGameConfigFlag.m_bCharacter_Storage);	// return success
+			
+			
+			MSG_WriteChar(&netMessage,pClient->billMethod[0]);
+			MSG_WriteChar(&netMessage,pClient->billMethod[1]);
+			MSG_WriteLong(&netMessage,ntohl(pClient->billRemain));
+			MSG_WriteChar(&netMessage,pClient->billExpire[0]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[1]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[2]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[3]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[4]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[5]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[6]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[7]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[8]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[9]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[10]);
+			MSG_WriteChar(&netMessage,pClient->billExpire[11]);
+
+		}else{		
+			MSG_WriteByte(&netMessage, enumErrorCode);
+			
+			// 임시설정
+			if ( enumErrorCode == tagMCPaket_MSC_REPLYLOGIN::enumError::mismatch_password )
+			{
+				g_logSystem->Write("암호불일치: %s, (%s)", 
+					pClient->id, 
+					NET_AddrToString((struct sockaddr *)&pClient->sock.addr));
+			}
+		}
+		NET_SendMessage(&pClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+
+
+
+
+
+
+// [하이코쿤] elfshadow 2005-10-31 11:6 begin
+
+void GTH_ReplyLogin_Hicocoon(i3client_t* pClient,
+		const BOOL bSUCCESSorFAIL,
+		enum tagMCPaket_MSC_REPLYLOGIN::enumError enumErrorCode)
+{
+	// reply to connection request
+    MSG_BeginWriting( &netMessage );
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REPLYLOGIN);		
+		MSG_WriteByte(&netMessage, pClient->Identify.Certification);
+		MSG_WriteByte(&netMessage, bSUCCESSorFAIL);	// return success			
+
+		//if ( reply > 0)
+		if(TRUE == bSUCCESSorFAIL)
+		{
+			MSG_WriteString(&netMessage,pClient->id);
+			//유료 스토리지 에 대한 플래그 값 전송
+			MSG_WriteByte(&netMessage, (BYTE)gGameConfigFlag.m_bCharacter_Storage);	// return success
+			
+
+		}else{		
+			MSG_WriteByte(&netMessage, enumErrorCode);
+			
+			// 임시설정
+			if ( enumErrorCode == tagMCPaket_MSC_REPLYLOGIN::enumError::mismatch_password )
+			{
+				g_logSystem->Write("암호불일치: %s, (%s)", 
+					pClient->id, 
+					NET_AddrToString((struct sockaddr *)&pClient->sock.addr));
+			}
+		}
+		NET_SendMessage(&pClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+
+}
+
+
+
+
+int GTH_SendMessage_GameServerGroup()
+{
+	int i;
+
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_SERVERGROUPINFO);
+		MSG_WriteByte(&netMessage, g_config.serviceServerGroupNumber);
+		//	for (i=0; i<MAX_SERVER_GROUP; i++)
+		for (i=0; i<g_config.serviceServerGroupNumber; i++)
+		{
+			MSG_WriteByte(&netMessage, g_serverGroup[i].active);
+			MSG_WriteByte(&netMessage, g_serverGroup[i].idx);  
+			MSG_WriteString(&netMessage, g_serverGroup[i].name); 
+			MSG_WriteShort(&netMessage, g_serverGroup[i].totalClient);
+			
+			// 서버군당 제한 수 이내만 접속 가능
+			if ( g_serverGroup[i].totalClient < g_config.maxServerGroupServiceClientNumber )
+			{
+				MSG_WriteByte(&netMessage, 1);		// 접속 가능
+			}
+			else
+			{
+				MSG_WriteByte(&netMessage, 0);		// 접속 허용 인원 초과
+			}
+		}
+		
+		NET_SendMessage(&g_curClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+
+	return 1;
+}
+
+
+
+//----------------------------------------------------------------------------------------------------------
+// 디버깅 함수
+void GTH_Debug_PacketInfo()
+{
+	char debug[1024];
+
+	sprintf( debug, "total send:%d, total recv:%d, send:%d, recv:%d, resend:%d, drop:%d, dup:%d, acksend:%d, ackrecv:%d, un_send:%d, un_recv:%d, un_drop:%d", 
+		totalPacketsSend, totalPacketsReceived,
+		packetsSent, packetsReceived, packetsReSent, packetsDropCount, packetsDupCount,
+		packetsAckSent, packetsAckReceived, un_packetsSent, un_packetsReceived, un_packetsDropCount );
+
+	MessageBox(g_hWnd, debug, "DebugInfo", MB_OK);
+}
+
+
+//----------------------------------------------------------------------------------------------------------
+// 해당 서버 그룹의 게임 데이터 로딩
+void GTH_RequestGameData()
+{
+	g_curClient->serverGroupID = MSG_ReadByte();
+
+	// 서버그룹 유효성 검사
+//	if (g_curClient->serverGroupID < 0 || g_curClient->serverGroupID >= MAX_SERVER_GROUP)
+	if (g_curClient->serverGroupID < 0 || g_curClient->serverGroupID >= g_config.serviceServerGroupNumber)
+		return;
+
+	// 캐릭터 데이터 로딩을 위한 3개 캐릭터 정보 초기화
+	GTH_InitAllCharacterData( g_curClient );
+
+	// 데이터 로딩 순서 반드시 지킬 것.(게임->스킬->아이템 테이블 순)
+	// 게임 정보
+
+	g_DBGameServer[g_curClient->serverGroupID]->LoadPremiumInfo(g_curClient);
+	g_DBGameServer[g_curClient->serverGroupID]->LoadAllGame(g_curClient);
+	// 퀘스트 정보
+	g_DBGameServer[g_curClient->serverGroupID]->LoadAllQuest( g_curClient );
+	g_DBGameServer[g_curClient->serverGroupID]->LoadAllQuestStatus( g_curClient );
+	// 스킬 정보
+	g_DBGameServer[g_curClient->serverGroupID]->LoadAllSkill( g_curClient );
+	// 아이템 정보
+	g_DBGameServer[g_curClient->serverGroupID]->LoadAllItem( g_curClient );
+
+	return;
+}
+
+
+
+
+#include "..\datastruct.h"
+#include "..\CTools.h"
+
+
+
+
+
+void GTH_SendGameData( i3client_t *client)
+{
+	
+
+
+	if(0 ==  client->dataNumber){
+		MSG_BeginWriting(&netMessage);
+		MSG_Clear( &netMessage );
+		{
+			MSG_WriteByte(&netMessage, MSC_GAMEDATA);
+			MSG_WriteByte(&netMessage, client->dataNumber);
+			NET_SendMessage(&client->sock, &netMessage);
+		}
+		MSG_EndWriting( &netMessage );
+		return;
+	}
+
+
+
+
+
+	int i=0, j=0, k=0;
+	item_t*				item=NULL;
+	skill_t*			skill=NULL;
+	characterData_t*	data=NULL;
+	questVariable_t*	questVar = NULL;
+	questInventory_t*	questInventory = NULL;
+	questStatus_t*		questStatus =NULL;
+
+
+
+	for (i=0; i<client->dataNumber; i++)
+	{
+		MSG_BeginWriting(&netMessage);
+		MSG_Clear( &netMessage );
+		{
+			MSG_WriteByte(&netMessage, MSC_GAMEDATA);
+			MSG_WriteByte(&netMessage, client->dataNumber);
+			
+			data = &client->data[i];
+			
+			MSG_WriteByte(&netMessage, data->characterID);
+			MSG_WriteByte(&netMessage, data->pcClass);
+			MSG_WriteByte(&netMessage, data->pcJob);
+			
+			MSG_WriteByte(&netMessage, data->skinPart[0]);
+			MSG_WriteByte(&netMessage, data->skinPart[1]);
+			MSG_WriteByte(&netMessage, data->skinPart[2]);
+			MSG_WriteByte(&netMessage, data->skinPart[3]);
+			
+			MSG_WriteString(&netMessage, data->name);
+			//MSG_WriteByte(&netMessage, data->age);
+			MSG_WriteLong(&netMessage, data->age);
+			
+			MSG_WriteString(&netMessage, data->rank);
+			// 2004-04-13 14:30, Jongnam
+			// 명성 포인트 long로 변경
+			MSG_WriteLong(&netMessage, data->rankPoint);
+			
+			MSG_WriteByte(&netMessage, data->worldIdx);
+			// pos
+			// angle
+			
+			MSG_WriteByte(&netMessage, data->level);
+			MSG_Write64Int(&netMessage, data->exp);
+			MSG_WriteByte(&netMessage, data->increaseExpRate);
+			
+			MSG_WriteByte(&netMessage, data->selectedGen);
+			MSG_WriteByte(&netMessage, data->genLevel);
+			MSG_Write64Int(&netMessage, data->genExp);
+			MSG_WriteByte(&netMessage, data->increaseGenExpRate);
+			for (j=0; j<GEN_NUMBER; j++)
+				MSG_WriteLong(&netMessage, data->genCapability[j]);
+			
+			MSG_WriteShort(&netMessage, data->force);
+			MSG_WriteShort(&netMessage, data->soulpower);
+			MSG_WriteShort(&netMessage, data->agility);
+			MSG_WriteShort(&netMessage, data->vitality);
+			
+			MSG_WriteShort(&netMessage, data->bonusStatusPoint);
+			
+			MSG_WriteLong(&netMessage, data->curRA);
+			MSG_WriteShort(&netMessage, data->curSA);
+			MSG_WriteLong(&netMessage, data->curChargeNSE);
+			MSG_WriteLong(&netMessage, data->curChargeSE);
+			MSG_WriteLong(&netMessage, data->curChargeRA);
+			MSG_WriteLong(&netMessage, data->curChargeSA);
+			MSG_WriteLong(&netMessage, data->depotSE);
+			
+			// 2003-01-23 동규
+			MSG_WriteByte(&netMessage, data->curWeapon);
+			
+			MSG_WriteByte(&netMessage, data->itemNumber);
+			for (j=0; j<MAX_INVENTORY_SIZE; j++)
+				MSG_WriteChar(&netMessage, data->inventory[j]);
+			
+			for (j=0; j<MAX_DEPOT_SIZE; j++)
+				MSG_WriteChar(&netMessage, data->depot[j]);
+			
+			for (j=0; j<MAX_EQUIPMENT; j++)
+				MSG_WriteChar(&netMessage, data->equipment[j]);
+			
+			MSG_WriteChar(&netMessage, data->mouseInventory);
+			
+			// 스킬 
+			MSG_WriteByte(&netMessage, data->bonusSkillPoint);
+			
+			for (j=0; j<MAX_NUMBER_OF_SKILL_VARIABLE; j++)
+				MSG_WriteShort(&netMessage, data->skillVariable[j]);
+			
+			// 2003-11-24 동규 
+			// 아이템 숙성 정보
+			for (j=0; j<MAX_PRECOCITY_SIZE; j++)
+			{
+				MSG_WriteChar(&netMessage, data->precocityInventory[j]);
+				MSG_WriteLong(&netMessage, data->precocityTime[j]);
+			}
+			
+			// 2004-04-13 14:31, Jongnam
+			// 카오수치
+			MSG_WriteShort(&netMessage, data->chaosPoint);
+			// 단관련 정보
+			MSG_WriteShort(&netMessage, data->guildIdx);
+			MSG_WriteLong(&netMessage, data->guildJoinTime);
+			MSG_WriteLong(&netMessage, data->guildSecedeTime);
+			
+			// 아이템 정보
+			item = &data->item[0];
+			for (j=0; j<MAX_NUMBER_OF_OWNITEM; j++, item++)
+			{
+				if (item->itemTableIdx < 0) continue;
+				
+				MSG_WriteByte(&netMessage, j);
+				MSG_WriteString(&netMessage, item->name);
+				MSG_WriteShort(&netMessage, item->itemTableIdx);
+				MSG_WriteByte(&netMessage, item->optionNumber);
+				
+				for (k=0; k<item->optionNumber; k++)
+					MSG_WriteShort(&netMessage, item->optionIdx[k]);
+				
+				for (k=0; k<item->optionNumber; k++)
+					MSG_WriteShort(&netMessage, item->optionValue[k]);
+				
+				MSG_WriteShort(&netMessage, item->durability);
+				MSG_WriteByte(&netMessage, item->reqLevel);
+				MSG_WriteLong(&netMessage, item->experience);
+				MSG_WriteLong(&netMessage, item->timer);
+
+
+				// [아이템 2차 확장] elfshadow 2005-04-14 13:32, begin
+				MSG_WriteLong(&netMessage, item->ItemExtendInfo.UseFlag);
+				MSG_WriteLong(&netMessage, (int)item->ItemExtendInfo.ItemSpawnInfomation.ItemSpawnType);
+				MSG_WriteString(&netMessage, item->ItemExtendInfo.ItemSpawnInfomation.data);			
+				
+				// 아이템 시간 보정 
+				// 비정상적으로 아이템이 삭제가 덜 된경우이다.
+				// 모든 아이템관련 루틴에서 바로 정상 삭제 할 수 있도록 다음과 같이 처리한다.
+				// 음수값이 아닌 0으로 셋팅하여 게임 접속시 바로 삭제 할 수 있도록 한다.
+				if (CTools::IsItemUseFlag(item, item_t::sItemExtendInfo::enumItemUseFlag::ITEM_USE_FLAG_USE_TIME) )
+				{
+					if ( item->ItemExtendInfo.AllowUseTime < 0 )
+						item->ItemExtendInfo.AllowUseTime = 0;
+				}
+				
+				MSG_WriteLong(&netMessage, item->ItemExtendInfo.AllowUseTime);
+				
+				if (CTools::IsItemUseFlag(item, item_t::sItemExtendInfo::enumItemUseFlag::ITEM_USE_FLAG_USE_DATE) )
+				{		
+					item->ItemExtendInfo.CalclateUseDateToSec = difftime(item->ItemExtendInfo.AllowUseTime , time(NULL));
+					if ( item->ItemExtendInfo.CalclateUseDateToSec < 0)
+						item->ItemExtendInfo.CalclateUseDateToSec = 0;
+				}
+				
+				MSG_WriteLong(&netMessage, item->ItemExtendInfo.CalclateUseDateToSec);
+				// [아이템 2차 확장] elfshadow 2005-04-14 13:32, end
+			}
+			
+			// 스킬 정보
+			MSG_WriteByte(&netMessage, data->skillNumber);
+			skill = &data->skill[0];
+			for (j=0; j<MAX_NUMBER_OF_SKILL; j++, skill++)
+			{
+				if (skill->tableIdx < 0) continue;
+				
+				MSG_WriteByte(&netMessage, j);
+				MSG_WriteShort(&netMessage, skill->tableIdx);
+				//MSG_WriteByte(&netMessage, skill->iLevel);
+				MSG_WriteLong(&netMessage, skill->iLevel);
+			}
+			
+			// 2003-06-14 동규
+			// hotkey
+			for (j=0; j<MAX_NUMBER_OF_HOTKEY; j++)
+			{
+				MSG_WriteByte(&netMessage, data->hotkeyType[j]);
+				MSG_WriteChar(&netMessage, data->hotkeyIdx[j]);
+			}
+			
+			// 퀘스트
+			MSG_WriteLong(&netMessage, data->questPoint);
+			MSG_WriteByte(&netMessage, data->questNumber);
+			questVar = &data->questVar[0];
+			for (j=0; j<MAX_COUNT_QUEST_VARIABLE; j++, questVar++)
+				MSG_WriteLong(&netMessage, questVar->iVar);
+			
+			questInventory = &data->questInventory[0];
+			for (j=0; j<MAX_COUNT_QUEST_INVENTORY; j++, questInventory++)
+				MSG_WriteLong(&netMessage, questInventory->iItem);
+			
+			questStatus = &data->questStatus[0];
+			
+			for (j=0; j<MAX_COUNT_QUEST_STATUS; j++, questStatus++)
+			{
+				if (questStatus->questIdx < 0) continue;
+				
+				MSG_WriteByte(&netMessage, questStatus->idx);
+				MSG_WriteShort(&netMessage, questStatus->questIdx);
+				for (k=0; k<MAX_COUNT_QUEST_STATUS_DYNAMIC_FIELD; k++)
+					MSG_WriteLong(&netMessage, questStatus->dField[k]);
+				
+				MSG_WriteString(&netMessage, questStatus->partyOrganizerName);
+				MSG_WriteByte(&netMessage, questStatus->partyOrganizeServer);
+				MSG_WriteLong(&netMessage, questStatus->partyOrganizeTime);
+				MSG_WriteLong(&netMessage, questStatus->clearTime);
+				MSG_WriteLong(&netMessage, questStatus->limitTime);
+			}
+			
+			NET_SendMessage(&client->sock, &netMessage);
+		}
+		MSG_EndWriting( &netMessage );
+	} // end of for
+}
+
+#include "..\CPremiumPlayerCtrl.h"
+extern CPremiumPlayerCtrl* gcpPremiumPlayerCtrl;
+
+#include "..\CTools.h"
+
+
+void TransmitePacket_MSC_GAMESERVERADDR(i3client_t* pClient,const int characterID)
+{
+	characterData_t*  pSelectCharactorSlot=NULL;
+	pSelectCharactorSlot=CTools::GetCharactorWithCharacterID(pClient,characterID);
+	if(NULL == pSelectCharactorSlot) return;
+
+
+	int groupIdx, memberIdx;
+	groupIdx  = pClient->serverGroupID;
+	memberIdx = GTH_FindServerWithinGroup(&g_serverGroup[groupIdx],pSelectCharactorSlot->worldIdx);
+	if(memberIdx < 0 ) return;
+
+
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_GAMESERVERADDR);
+		MSG_WriteString(&netMessage, g_serverGroup[groupIdx].memberServer[memberIdx].serviceIP);
+		MSG_WriteShort(&netMessage,  g_serverGroup[groupIdx].memberServer[memberIdx].servicePort);
+		MSG_WriteByte(&netMessage,  pSelectCharactorSlot->worldIdx);
+		NET_SendMessage(&pClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+
+
+BOOL GTH_RequestGameServerAddr(void)
+{
+	int CharactorID=-1;
+	characterData_t*  pSelectCharactorSlot=NULL;
+	characterTable_t* pGenTableRecoder=NULL;
+	
+	CharactorID  = MSG_ReadByte();	
+	pSelectCharactorSlot=CTools::GetCharactorWithCharacterID(g_curClient,CharactorID);
+	if(NULL == pSelectCharactorSlot) return FALSE;
+
+	pGenTableRecoder = CTools::GetCharactorGenTableRecord(pSelectCharactorSlot->pcClass);
+	if(NULL == pGenTableRecoder) return FALSE;
+
+
+	int groupIdx=-1;
+	int memberIdx=-1;
+	groupIdx = g_curClient->serverGroupID;
+	//serverGroup_t	g_serverGroup[MAX_SERVER_GROUP];
+	if(groupIdx < 0) return FALSE;
+	if(groupIdx >= MAX_SERVER_GROUP) return FALSE;
+
+	memberIdx = GTH_FindServerWithinGroup(&g_serverGroup[groupIdx], pSelectCharactorSlot->worldIdx);	
+	
+	if( (memberIdx < 0) ||
+		(FALSE == gcpPremiumPlayerCtrl->isAccessMap(pSelectCharactorSlot->worldIdx,g_curClient))){
+
+		pSelectCharactorSlot->worldIdx = pGenTableRecoder->worldIdx;
+		vec_copy(pGenTableRecoder->position, pSelectCharactorSlot->position);
+		vec_copy(pGenTableRecoder->angles,   pSelectCharactorSlot->angles);		
+
+		//g_DBAccountServer->SaveCharactorPostion(g_curClient,CharactorID);
+		return TRUE;
+	}	
+
+	g_curClient->isComplete = true;	// 서비스 완료됨	
+	g_DBAccountServer->DeleteLogin( g_curClient );
+	TransmitePacket_MSC_GAMESERVERADDR(g_curClient,CharactorID);
+	
+
+	return TRUE;
+}
+
+int GTH_FindServerWithinGroup(serverGroup_t *group, int worldIdx)
+{
+	int i, j;
+	memberServer_t *member;
+
+	member = &group->memberServer[0];
+	for (i=0; i<MAX_MEMBER_SERVER; i++, member++)
+	{
+		if ( !member->active ) continue;
+		for (j=0; j<member->worldNumber; j++)
+		{
+			if ( member->worldList[j] == worldIdx ) 
+				return i;
+		}
+	}
+
+	return -1;
+}
+
+// 2003-01-14 동규
+void GTH_RequestReadyCreate()
+{
+	int reply, i;
+
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		// 클라이언트의 캐릭터 생성 개수를 검사 -> 3개 미만만 생성 허용
+		if ( g_curClient->dataNumber >= MAX_CHARACTER_DATA )
+		{
+			reply = 0;
+			MSG_WriteByte(&netMessage, MSC_REPLY_READYCREATE);
+			MSG_WriteByte(&netMessage, reply);
+		}
+		else
+		{
+			reply = 1;
+			MSG_WriteByte(&netMessage, MSC_REPLY_READYCREATE);
+			MSG_WriteByte(&netMessage, reply);
+			MSG_WriteByte(&netMessage, g_numCharacterTable);
+			for (i=0; i<g_numCharacterTable; i++)
+			{
+				MSG_WriteByte(&netMessage, g_characterTable[i].pcClass);
+				MSG_WriteShort(&netMessage, g_characterTable[i].force);
+				MSG_WriteShort(&netMessage, g_characterTable[i].soulpower);
+				MSG_WriteShort(&netMessage, g_characterTable[i].agility);
+				MSG_WriteShort(&netMessage, g_characterTable[i].vitality);
+				MSG_WriteShort(&netMessage, g_characterTable[i].bonusStatusPoint);
+			}
+		}
+		NET_SendMessage(&g_curClient->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+
+// 캐릭터 생성시 클라이언트로 부터 온 데이터 값을 검증한다.
+BOOL CheckStatusValue(charEditData_t* pEditData)
+{
+	if ( pEditData == NULL)
+		return FALSE;
+
+	// 캐릭터 생성 테이블을 구한다.
+	characterTable_t* pCharTable = NULL;
+	pCharTable = CTools::GetCharactorGenTableRecord(pEditData->pcClass);
+	if ( pCharTable == NULL )
+		return FALSE;
+
+	// 캐릭터가 가질수 있는 전체 스테이터스 총 포인트를 구한다.
+	int TotalPoint = 0;
+	TotalPoint += pEditData->force;
+	TotalPoint += pEditData->soulpower;
+	TotalPoint += pEditData->agility;
+	TotalPoint += pEditData->vitality;	
+	TotalPoint += pEditData->bonusPoint;
+
+
+	if ( (pEditData->force < 0) || 
+		( pEditData->force > pCharTable->force + pCharTable->bonusStatusPoint))
+		return FALSE;
+
+	if ( (pEditData->soulpower < 0) || 
+		( pEditData->soulpower > pCharTable->soulpower + pCharTable->bonusStatusPoint))
+		return FALSE;
+
+	if ( (pEditData->agility < 0) || 
+		( pEditData->agility > pCharTable->agility + pCharTable->bonusStatusPoint))
+		return FALSE;
+
+	if ( (pEditData->vitality < 0) || 
+		( pEditData->vitality > pCharTable->vitality + pCharTable->bonusStatusPoint))
+		return FALSE;
+
+	if ( (pEditData->bonusPoint < 0) || 
+		( pEditData->bonusPoint > pCharTable->bonusStatusPoint))
+		return FALSE;
+
+	// 전체 가질수 있는 포인트보다 많다면 리턴
+	if ( TotalPoint > pCharTable->TotalStatusPointForGenType )
+		return FALSE;
+
+	int MaxHairNumber;
+	int MaxFaceNumber;
+	
+	
+	// 선택할 수 있는 머리/ 얼굴 인덱스 보다 많으면 생성 불가
+	if ( ( pEditData->skinPart[0] < 0 )||
+		 ( pEditData->skinPart[0] >= pCharTable->MaxHairNumber) ||
+		 ( pEditData->skinPart[1] < 0 ) ||
+		 ( pEditData->skinPart[1] >=pCharTable->MaxFaceNumber) )
+		return FALSE;
+
+	return TRUE;
+}
+
+int GTH_RequestCreateCharacter()
+{
+	charEditData_t	data;
+	int characterID;
+	int error;
+
+	characterID			= MSG_ReadByte();
+	data.pcClass		= MSG_ReadByte();
+	strcpy(data.name, MSG_ReadString());
+	data.skinPart[0]	= MSG_ReadByte();
+	data.skinPart[1]	= MSG_ReadByte();
+	data.skinPart[2]	= MSG_ReadByte();
+	data.skinPart[3]	= MSG_ReadByte();
+	data.force			= MSG_ReadShort();
+	data.soulpower		= MSG_ReadShort();
+	data.agility		= MSG_ReadShort();
+	data.vitality		= MSG_ReadShort();
+	data.bonusPoint		= MSG_ReadShort();
+
+	int MembershipType	= MSG_ReadShort();
+
+	// 캐릭터 생성을 위한 데이터 유효성 검사
+	if (data.pcClass < 0 || data.pcClass > NUM_TABLE_GEN_TYPE) 
+	{
+		error = 0;
+		goto REPLY_ERROR_CREATECHARACTER;
+	}
+
+	// [아이템복사] elfshadow 2006-01-25 17:17 begin
+	// 말레이시아 캐릭터 생성 해킹으로 인하여 검증을 한다.	
+	// 특수문자및 공백등을 체크한다.
+	if ( FALSE == GTH_CheckValidName(data.name))
+	{
+		error = 0;
+		goto REPLY_ERROR_CREATECHARACTER;
+	}
+	
+	// [AHNLAB] elfshadow 2005-08-09 	
+	if ( FALSE == CheckStatusValue(&data) )
+	{
+		error = 0;
+		goto REPLY_ERROR_CREATECHARACTER;
+	}
+
+	
+
+	// characterID (슬롯 수) 의 유효성 검사
+	if ( !GTH_CheckValidationCharacterID(g_curClient, characterID) )
+	{
+		error = 0;
+		goto REPLY_ERROR_CREATECHARACTER;
+	}
+
+	GTH_SetCharacterData(&g_curClient->createData, characterID, &data);
+
+	g_DBGameServer[g_curClient->serverGroupID]->CreateCharacter( g_curClient ); 
+
+	//계정 스토리지 2004-12-03 queen
+	//처음 캐릭인 경우.. 이걸로 세이브
+	if(MembershipType)
+	{
+		g_DBGameServer[g_curClient->serverGroupID]->SaveCharacterSlot(g_curClient,MembershipType);
+	}
+
+	return 1;
+REPLY_ERROR_CREATECHARACTER:
+	GTH_SendMessage_ReplyCreateCharacter(g_curClient, error);
+	return 0;
+}
+
+
+void GTH_SendMessage_ReplyCreateCharacter(i3client_t *client, int reply)
+{
+
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REPLY_CREATECHARACTER);
+		MSG_WriteByte(&netMessage, reply);
+		NET_SendMessage(&client->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+int GTH_RequestDeleteCharacter()
+{
+	int characterID;
+	int error;
+
+	characterID = MSG_ReadByte();
+
+	if (characterID < 0 || characterID >= MAX_CHARACTER_DATA) 
+	{
+		error = 0;
+		goto REPLY_ERROR_DELETECHARACTER;
+	}
+
+	g_curClient->deleteCharacterID = characterID;
+	g_DBGameServer[g_curClient->serverGroupID]->DeleteCharacter(g_curClient, g_curClient->deleteCharacterID);
+	return 1;
+
+REPLY_ERROR_DELETECHARACTER:
+	GTH_SendMessage_ReplyDeleteCharacter(g_curClient, error);
+	return 0;
+}
+
+void GTH_SendMessage_ReplyDeleteCharacter(i3client_t *client, int reply)
+{
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REPLY_DELETECHARACTER);
+		MSG_WriteByte(&netMessage, reply);
+		NET_SendMessage(&client->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+int GTH_RequestCheckCharacterName()
+{
+	strcpy(g_curClient->createData.name, MSG_ReadString());
+	g_DBGameServer[g_curClient->serverGroupID]->CheckCharacterName(g_curClient, g_curClient->serverGroupID, g_curClient->createData.name);
+
+	return 1;
+}
+
+void GTH_ReplyCheckCharacterName(i3client_t *client, int reply)
+{
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_REPLY_CHECKCHARNAME);
+		MSG_WriteByte(&netMessage, reply);
+		NET_SendMessage(&client->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+
+// sending & receiving queue
+extern CSendingQueue *sendingQueue;
+extern CReceivingQueue *receivingQueue;
+extern CQueryQueue		*queryRequestQueue, *queryResultQueue;
+void GTH_Debug_ServerStatusInfo()
+{	
+	g_logSystem->Write( "server close packet info -> total send:%d, total recv:%d, send:%d, recv:%d, resend:%d, drop:%d, dup:%d, acksend:%d, ackrecv:%d, un_send:%d, un_recv:%d, un_drop:%d", 
+		totalPacketsSend, totalPacketsReceived,
+		packetsSent, packetsReceived, packetsReSent, packetsDropCount, packetsDupCount,
+		packetsAckSent, packetsAckReceived, un_packetsSent, un_packetsReceived, un_packetsDropCount );
+
+	g_logSystem->Write("Server shutdown status Info.: SendingQueue (%d, %d), ReceivingQueue (%d, %d), QReqQ(%d, %d), QResQ(%d, %d), ClientNumber: %d", 
+			sendingQueue->m_count, sendingQueue->m_maxCount, receivingQueue->m_count, receivingQueue->m_maxCount, 
+			queryRequestQueue->m_count, queryRequestQueue->m_maxCount, queryResultQueue->m_count, queryResultQueue->m_maxCount, g_clientNumber);
+}
+
+//-----------------------------------------------------------------------------------------------------------
+// 서버군 모니터링 정보 
+
+void GTH_ProcessMessage_Monitor()
+{
+	int command;
+
+	if ( !g_curClient->isSuccessLogin )	// 성공적인 로그인 상테에서만 서비스
+	{
+		g_logSystem->Write("서버 모니터링 클라이언트에서 로그인 안된 상태에서 서비스를 요청하고 있습니다.(ID: %s, IP:%s)", 
+			g_curClient->id, NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));
+		return;
+	}
+
+	command = MSG_ReadByte();
+
+	switch ( command )
+	{
+	case MONITOR_REQUEST_SERVERINFO:
+		GTH_SendMessage_Monitor_ServerInfo( g_curClient );
+		break;
+
+	case MONITOR_REQUEST_FILTERING:
+		if ( g_filterYn )
+			g_logSystem->Write("서버 모니터링 클라이언트에서 접속모드를 변경(운영자전용->모두허용)합니다.(ID:%s, IP:%s)", g_curClient->id, NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));
+		else
+			g_logSystem->Write("서버 모니터링 클라이언트에서 접속모드를 변경(모두허용->운영자전용)합니다.(ID:%s, IP:%s)", g_curClient->id, NET_AddrToString((struct sockaddr *)&g_curClient->sock.addr));
+
+		g_filterYn = !g_filterYn;
+
+	case MONITOR_CHANGE_FILLTERING_MESSAGE:
+		if ( g_filterYn )
+		{
+			g_filterIdx++;
+			if ( g_filterIdx >= MAX_FILTER_MESSAGE )
+				g_filterIdx = 0;
+		}
+		break;
+
+	default :
+		break;
+	}
+}
+
+void GTH_Fill_Monitor_ServerInfo(int startIdx)
+{
+	int i, j, k;
+	serverGroup_t *serverGroup;
+
+	MSG_WriteByte(&netMessage, MSC_MONITOR);
+	MSG_WriteByte(&netMessage, MONITOR_REPLY_SERVERINFO);
+
+	// 마스터서버 정보
+	MSG_WriteByte(&netMessage, 1);	// 마스터서버 수
+	MSG_WriteByte(&netMessage, g_config.serverNo);
+	MSG_WriteByte(&netMessage, 1); // active 정보
+	MSG_WriteString(&netMessage, g_hostName);
+	MSG_WriteString(&netMessage, g_config.serviceIP);
+	MSG_WriteShort(&netMessage, g_config.servicePort);
+	MSG_WriteString(&netMessage, g_config.localIP);
+	MSG_WriteShort(&netMessage, g_config.localPort);
+	MSG_WriteString(&netMessage, g_config.accountDatabaseDSN);
+	MSG_WriteString(&netMessage, g_config.gameVersion);
+	MSG_WriteByte(&netMessage, g_filterYn);
+	MSG_WriteByte(&netMessage, g_filterIdx); // 필터링 메시지 종류
+	MSG_WriteShort(&netMessage, g_clientNumber);
+	MSG_WriteShort(&netMessage, g_maxClientNumber);
+	MSG_WriteLong(&netMessage, g_concurrentClients);
+	MSG_WriteLong(&netMessage, g_maxConcurrentClients);
+
+	// 서버군 정보
+	MSG_WriteByte( &netMessage, GTH_GetNumberActiveServerGroup() );	// 가동중인 서버군 수
+	serverGroup = &g_serverGroup[startIdx * MAX_SERVER_GROUP_PER_MESSAGE];
+	
+	int start = startIdx*MAX_SERVER_GROUP_PER_MESSAGE;
+	int end = MAX_SERVER_GROUP_PER_MESSAGE * (startIdx+1);
+	
+	for (i=start; i<end; i++, serverGroup++)
+	{
+		MSG_WriteByte(&netMessage, serverGroup->idx);
+		MSG_WriteByte(&netMessage, serverGroup->active);
+		if ( !serverGroup->active ) continue;
+		MSG_WriteString(&netMessage, serverGroup->name);
+		MSG_WriteString(&netMessage, serverGroup->DSN);
+		MSG_WriteShort(&netMessage, serverGroup->totalClient);
+		MSG_WriteShort(&netMessage, serverGroup->maxTotalClient);
+		MSG_WriteByte(&netMessage, serverGroup->memberServerNumber);
+
+		for (j=0; j<MAX_MEMBER_SERVER; j++)
+		{
+			MSG_WriteByte(&netMessage, serverGroup->memberServer[j].idx);
+			MSG_WriteByte(&netMessage, serverGroup->memberServer[j].active);
+			MSG_WriteString(&netMessage, serverGroup->memberServer[j].name);	// 2003-05-29
+			MSG_WriteString(&netMessage, serverGroup->memberServer[j].hostName);
+			MSG_WriteString(&netMessage, serverGroup->memberServer[j].serviceIP);
+			MSG_WriteShort(&netMessage, serverGroup->memberServer[j].servicePort);
+			MSG_WriteString(&netMessage, serverGroup->memberServer[j].localIP);
+			MSG_WriteShort(&netMessage, serverGroup->memberServer[j].localPort);
+			MSG_WriteByte(&netMessage, serverGroup->memberServer[j].worldNumber);
+			for (k=0; k < serverGroup->memberServer[j].worldNumber; k++)
+				MSG_WriteByte(&netMessage, serverGroup->memberServer[j].worldList[k]);
+			MSG_WriteShort(&netMessage, serverGroup->memberServer[j].clientNumber);
+			MSG_WriteShort(&netMessage, serverGroup->memberServer[j].maxClientNumber);
+		}	// of for j
+	}	// of for i
+}
+
+void GTH_SendMessage_Monitor_ServerInfo(i3client_t *client)
+{
+	int serverGroupIdx = 0 ;
+
+	for (int i = 0; i < (MAX_SERVER_GROUP/MAX_SERVER_GROUP_PER_MESSAGE); ++i)
+	{
+		MSG_BeginWriting(&netMessage);
+		MSG_Clear( &netMessage );
+		{
+			GTH_Fill_Monitor_ServerInfo(i);
+			NET_SendMessage(&client->sock, &netMessage);
+		}
+		MSG_EndWriting( &netMessage );
+	}
+}
+
+int GTH_GetNumberActiveServerGroup()
+{
+	int i;
+	int activeNumber = 0;
+
+	for (i=0; i<MAX_SERVER_GROUP; i++)
+	{
+		if ( g_serverGroup[i].active ) activeNumber ++;
+	}
+
+	return activeNumber;
+}
+
+int GTH_GetNumberActiveMemberServer(int groupIdx)
+{
+	int i;
+	int activeNumber = 0;
+
+	if ( !g_serverGroup[groupIdx].active ) return 0;
+
+	for (i=0; i<MAX_MEMBER_SERVER; i++)
+	{
+		if ( g_serverGroup[groupIdx].memberServer[i].active ) activeNumber ++;
+	}
+
+	return activeNumber;
+}
+
+int GTH_CalculateConcurrentClients()
+{
+	int i;
+	serverGroup_t *serverGroup;
+	int concurrentClients;
+
+	concurrentClients = 0;
+	serverGroup = &g_serverGroup[0];
+	for (i=0; i<MAX_SERVER_GROUP; i++, serverGroup++)
+	{
+		if ( !serverGroup->active ) continue;
+		concurrentClients += serverGroup->totalClient;
+	}
+
+	// 최대 동접자 정보 갱신
+	if ( concurrentClients > g_maxConcurrentClients) 
+		g_maxConcurrentClients = concurrentClients;
+
+	g_concurrentClients = concurrentClients;
+	return g_concurrentClients;
+}
+
+//////////////////////////////////////////////////////////////////////////
+//계정 스토리지 2004-12-03 queen begin
+//////////////////////////////////////////////////////////////////////////
+
+void GTH_SendCharacterLoadSlot(i3client_t *client,int day)
+{
+	MSG_BeginWriting(&netMessage);
+	MSG_Clear( &netMessage );
+	{
+		MSG_WriteByte(&netMessage, MSC_LOAD_CHARACTER_SLOT);
+		
+		MSG_WriteByte(&netMessage, client->m_nCharacterSlotType);
+
+		MSG_WriteShort(&netMessage, day);
+
+		NET_SendMessage(&client->sock, &netMessage);
+	}
+	MSG_EndWriting( &netMessage );
+}
+
+void GTH_LoadCharacterSlot()
+{
+	g_DBGameServer[g_curClient->serverGroupID]->LoadCharacterSlot();
+}
+
+void GTH_SaveCharacterSlot()
+{
+	int type = MSG_ReadByte();
+	g_DBGameServer[g_curClient->serverGroupID]->SaveCharacterSlot(g_curClient,type);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//계정 스토리지 2004-12-03 queen end
+//////////////////////////////////////////////////////////////////////////
+// [아이템복사] elfshadow 2006-01-25 17:14 begin
+BOOL	IsVaildString( char *str )
+{
+	bool en;
+	
+	wchar_t uniCode;
+	unsigned char aniCode[3];
+	
+	while( *str )
+	{		
+		memset( aniCode, 0, sizeof( aniCode ) );
+		
+		aniCode[0] = *str;
+		
+		if( aniCode[0] == '\n' )
+		{
+			str ++;
+			continue;
+		}
+		
+		// is empty
+		if( aniCode[0] == ' ' )
+		{
+			str ++; 
+			//아이디 공백
+			//continue;
+			return FALSE;
+		}
+		
+		// DBCS code
+		if( IsDBCSLeadByte( (BYTE)aniCode[0] ) )
+		{
+			aniCode[1] = * ++str;
+			aniCode[2] = 0;
+			MultiByteToWideChar( CP_ACP, MB_COMPOSITE, (char*)aniCode, -1, &uniCode, 1 );
+			en = false;
+		}
+		else
+		{
+			aniCode[1] = 0;
+			MultiByteToWideChar( CP_ACP, MB_COMPOSITE, (char*)aniCode, -1, &uniCode, 1 );
+			en = true;
+		}
+
+		if( en )
+		{
+			if( ( aniCode[0] >= 0x30 && aniCode[0] <= 0x39 ) ||
+				( aniCode[0] >= 0x41 && aniCode[0] <= 0x5a ) ||
+				( aniCode[0] >= 0x61 && aniCode[0] <= 0x7a ) )
+			{
+				str++;
+				continue;
+			}
+			else
+			{
+				return FALSE;
+			}
+		}
+
+		// yonghak
+		if ( uniCode >= 0x0000 && uniCode <= 0x00ff ) 
+		{
+			str ++;
+			continue;
+		} 
+		else if ( uniCode >= 0xfe00 && uniCode <= 0xffff )
+		{
+			str ++;
+			continue;
+		} 
+		else if ( uniCode >= 0x0100 && uniCode <= 0x04ff )
+		{
+			str ++;
+			continue;
+		}
+		else if ( uniCode >= 0x2000 && uniCode <= 0x26ff )
+		{
+			str ++;
+			continue;
+		}
+		else if ( uniCode >= 0x3000 && uniCode <= 0x33ff )
+		{
+			str ++;
+			continue;
+		}
+		else if ( uniCode >= 0xe700 && uniCode <= 0xe8ff )
+		{
+			str ++;
+			continue;
+		} 
+		else if ( uniCode >= 0x4e00 && uniCode <= 0x9fff )
+		{
+			str ++;
+			continue;
+		}
+		else if ( uniCode >= 0xf900 && uniCode <= 0xfaff )
+		{
+			str ++;
+			continue;
+		}
+		else
+		{
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+// [아이템복사] elfshadow 2006-01-25 17:21 begin
+BOOL GTH_CheckValidName( char *name )
+{
+	char substr[2];
+	if( name[0] == 0 )	
+		return FALSE;
+	
+	if ( strstr(name, "GM") != NULL )		
+		return FALSE;
+	
+	if ( strstr(name, "gm") != NULL )	
+		return FALSE;	
+	
+	if ( strstr( name, "gM") != NULL )		
+		return FALSE;	
+	
+	if ( strstr( name, "Gm") != NULL )	
+		return FALSE;	
+	
+	if ( FALSE == IsVaildString( name ) )	
+		return FALSE;	
+	
+	for ( int i = 0; i < 128; i++)
+	{
+		if ( i == 0 ) continue;				// 캐리지리턴
+		if (i > 47 && i < 58) continue;		// 숫자
+		if (i > 64 && i < 91) continue;		// 대문자
+		if (i > 96 && i < 123) continue;	// 소문자
+		
+		sprintf(substr, "%c", i);
+		if ( strstr( name, substr) != NULL )		
+			return FALSE;		
+	}
+
+	// 2004-07-12 11:37, Corrected by yonghak
+	if ( strlen( name ) > NAMESTRING - 2 )	
+		return FALSE;	
+	
+	return TRUE;
+}

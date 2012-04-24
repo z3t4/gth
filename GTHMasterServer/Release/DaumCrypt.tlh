@@ -1,0 +1,142 @@
+// Created by Microsoft (R) C/C++ Compiler Version 12.00.9782.0 (824188a1).
+//
+// c:\gth_out_source\gthmasterserver\release\DaumCrypt.tlh
+//
+// C++ source equivalent of Win32 type library DaumCrypt.DLL
+// compiler-generated file created 04/24/12 at 15:53:04 - DO NOT EDIT!
+
+#pragma once
+#pragma pack(push, 8)
+
+#include <comdef.h>
+
+namespace DAUM {
+
+//
+// Forward references and typedefs
+//
+
+struct /* coclass */ Encrypt;
+struct __declspec(uuid("40e692f5-cc5d-4609-948d-0988125ff8b4"))
+/* dual interface */ IEncrypt;
+struct /* coclass */ Decrypt;
+struct __declspec(uuid("ba5723e0-7f1c-4418-9491-2119ef75eb83"))
+/* dual interface */ IDecrypt;
+
+//
+// Smart pointer typedef declarations
+//
+
+_COM_SMARTPTR_TYPEDEF(IEncrypt, __uuidof(IEncrypt));
+_COM_SMARTPTR_TYPEDEF(IDecrypt, __uuidof(IDecrypt));
+
+//
+// Type library items
+//
+
+struct __declspec(uuid("285659a3-6f2b-4036-94ac-534e4d238886"))
+Encrypt;
+    // [ default ] interface IEncrypt
+
+struct __declspec(uuid("40e692f5-cc5d-4609-948d-0988125ff8b4"))
+IEncrypt : IDispatch
+{
+    //
+    // Property data
+    //
+
+    __declspec(property(get=GetInput,put=PutInput))
+    _bstr_t Input;
+    __declspec(property(get=GetOutput))
+    _bstr_t Output;
+
+    //
+    // Wrapper methods for error-handling
+    //
+
+    HRESULT Init (
+        _bstr_t key );
+    _bstr_t GetInput ( );
+    void PutInput (
+        _bstr_t pVal );
+    _bstr_t GetOutput ( );
+
+    //
+    // Raw methods provided by interface
+    //
+
+    virtual HRESULT __stdcall raw_Init (
+        BSTR key ) = 0;
+    virtual HRESULT __stdcall get_Input (
+        BSTR * pVal ) = 0;
+    virtual HRESULT __stdcall put_Input (
+        BSTR pVal ) = 0;
+    virtual HRESULT __stdcall get_Output (
+        BSTR * pVal ) = 0;
+};
+
+struct __declspec(uuid("9ac5b738-6e08-4148-b337-63cec5090c49"))
+Decrypt;
+    // [ default ] interface IDecrypt
+
+struct __declspec(uuid("ba5723e0-7f1c-4418-9491-2119ef75eb83"))
+IDecrypt : IDispatch
+{
+    //
+    // Property data
+    //
+
+    __declspec(property(get=GetInput,put=PutInput))
+    _bstr_t Input;
+    __declspec(property(get=GetOutput))
+    _bstr_t Output;
+
+    //
+    // Wrapper methods for error-handling
+    //
+
+    HRESULT Init (
+        _bstr_t key );
+    _bstr_t GetInput ( );
+    void PutInput (
+        _bstr_t pVal );
+    _bstr_t GetOutput ( );
+
+    //
+    // Raw methods provided by interface
+    //
+
+    virtual HRESULT __stdcall raw_Init (
+        BSTR key ) = 0;
+    virtual HRESULT __stdcall get_Input (
+        BSTR * pVal ) = 0;
+    virtual HRESULT __stdcall put_Input (
+        BSTR pVal ) = 0;
+    virtual HRESULT __stdcall get_Output (
+        BSTR * pVal ) = 0;
+};
+
+//
+// Named GUID constants initializations
+//
+
+extern "C" const GUID __declspec(selectany) LIBID_DAUM =
+    {0x962209f8,0x6127,0x4837,{0xa3,0x06,0x35,0xa9,0x0c,0x55,0xa3,0x88}};
+extern "C" const GUID __declspec(selectany) CLSID_Encrypt =
+    {0x285659a3,0x6f2b,0x4036,{0x94,0xac,0x53,0x4e,0x4d,0x23,0x88,0x86}};
+extern "C" const GUID __declspec(selectany) IID_IEncrypt =
+    {0x40e692f5,0xcc5d,0x4609,{0x94,0x8d,0x09,0x88,0x12,0x5f,0xf8,0xb4}};
+extern "C" const GUID __declspec(selectany) CLSID_Decrypt =
+    {0x9ac5b738,0x6e08,0x4148,{0xb3,0x37,0x63,0xce,0xc5,0x09,0x0c,0x49}};
+extern "C" const GUID __declspec(selectany) IID_IDecrypt =
+    {0xba5723e0,0x7f1c,0x4418,{0x94,0x91,0x21,0x19,0xef,0x75,0xeb,0x83}};
+
+//
+// Wrapper method implementations
+//
+
+#include "c:\gth_out_source\gthmasterserver\release\DaumCrypt.tli"
+
+} // namespace DAUM
+
+#pragma pack(pop)

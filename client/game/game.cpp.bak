@@ -1,0 +1,4438 @@
+#include "../global_def.h"
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// 게임로직 부분O
+
+#include "..\GM(Game Master)\CGMCtrl.h"
+extern CGMCtrl* gcpGMCtrl;
+
+int GTH_StartUpGame(int _Type)
+{
+	// 전역변수 초기화y
+	GTH_InitClientGlobalVariable();
+	
+	// 네트워크 초기화
+	if ( !GTH_Network_StartUp() )
+		return FALSE;
+
+//	//건강공지	`
+	if(_Type != NONE_MASTERSERVER_CONNECT)
+	{
+			// 2004-04-08 11:22, Jongnam
+			// 중국 마스터 서버 선택
+#if defined (_GTH_CHINESE_VERSION) || (_GTH_MALAYSIA_CHN_VERSION )
+			if( !g_script.Load( SERVER_CONFIG_FILENAME ) )
+#endif
+			{		
+			if ( !GTH_Network_EstablishMasterServerConnection() )
+				return false;
+
+			}
+	}
+	return true;
+}
+
+void GTH_ShutdownGame()
+{
+	// 접속 종료
+	if ( g_cgv.onMasterServer )
+		GTH_SendMessage_DisconnectMasterServer(); 
+	else if ( g_cgv.onGameServer )
+		GTH_SendMessage_DisconnectGameServer(FALSE); 
+}
+
+int GTH_ParseGameConfig()
+{
+	int i;
+	char *token;
+
+#ifdef _GTH_CHINESE_VERSION
+	// 2004-04-08 11:31, Jongnam
+	// 중국 마스터 서버 그룹이 있음
+	if( g_script.Load( "server_chn.cfg" ) ) 
+	{
+		return( GTH_ParseGameConfig_MasterServerGroup() );
+	}
+#endif
+
+	if( !g_script.Load( "server.cfg" ) )
+		return false;
+
+	// 2004-11-25 13:55, elfshadow begin	
+#ifdef _GTH_MALAYSIA_CHN_VERSION
+	else
+		return( GTH_ParseGameConfig_MasterServerGroup() );		
+#endif
+
+	g_script.BeginParse();
+
+	g_cgv.isTestServer = false;
+	g_cgv.languageType = GTH_LANGUAGE_TYPE_KOREAN;
+
+
+	while ( 1 )
+	{
+		token = g_script.GetNextToken( true );
+		if( !token[0] ) break;
+
+		if( !stricmp( token, "MASTER_SERVER_NUMBER" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.masterServerNumber = atoi( token );
+		}
+		else if( !stricmp( token, "MASTER_SERVER_IP" ) )
+		{
+			for (i=0; i<g_cgv.masterServerNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				strcpy ( g_cgv.listMasterServerIP[i], token );
+			}
+		}
+		else if( !stricmp( token, "MASTER_SERVER_PORT" ) )
+		{
+			for (i=0; i<g_cgv.masterServerNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.listMasterServerPort[i] = atoi( token );
+			}
+		}
+		// [게임버전] elfshadow 2005-09-09 10:46 begin		
+//		else if( !stricmp( token, "GAME_VERSION" ) )
+//		{ 
+//			token = g_script.GetNextToken( true );
+//			if( !token )  return false;
+//			strcpy ( g_cgv.gameVersion, token );
+			//strcpy( g_cgv.gameVersion, GTH_CLIENT_GAME_VERSION );
+//			if( strstr( g_cgv.gameVersion, "dev" ) != NULL ) 
+//			{
+//				g_cgv.isTestServer = true;
+//			}
+//			else
+//			{ 
+//				g_cgv.isTestServer = false;
+//			}
+
+//		}
+		else if( !stricmp( token, "SUB_VERSION" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			strcpy ( g_cgv.subVersion, token );
+			if( !stricmp( g_cgv.subVersion, "DEVELOPER" ) ) 
+			{
+				g_cgv.isDeveloper = true;
+			}
+			else 
+			{
+				g_cgv.isDeveloper = false;
+			}
+		}
+		else if( !stricmp( token, "LANGUAGE_TYPE" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			if( !stricmp( token, "KOERAN" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_KOREAN;
+			else if( !stricmp( token, "ENGLISH" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_ENGLISH;
+			else if( !stricmp( token, "JAPANESE" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_JAPANESE;
+			else if( !stricmp( token, "CHINESE" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_SIMPLIFIED_CHINESE;
+			else if( !stricmp( token, "TAIWAN" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_TRADITIONAL_CHINESE; // yonghak
+		}
+
+	}
+
+	return true;
+}
+
+// 2004-04-08 11:30, Jongnam
+int GTH_ParseGameConfig_MasterServerGroup()
+{
+	int i, groupIdx;
+	char *token;
+
+	g_script.BeginParse();
+
+	g_cgv.isTestServer = false;
+	g_cgv.languageType = GTH_LANGUAGE_TYPE_KOREAN;
+
+	while ( 1 )
+	{
+		token = g_script.GetNextToken( true );
+		if( !token[0] ) break;
+
+		if( !stricmp( token, "MASTER_SERVER_GROUP_NUMBER" ) )
+		{
+			token = g_script.GetNextToken( true );
+			g_cgv.masterServerGroupNumber = atoi( token );
+		}
+		else if( !stricmp( token, "MASTER_SERVER_GROUP_IDX" ) )
+		{
+			token = g_script.GetNextToken( true );
+			groupIdx = atoi( token );
+		}
+		else if( !stricmp( token, "MASTER_SERVER_GROUP_NAME" ) )
+		{
+			token = g_script.GetNextToken( true );
+			strcpy( g_cgv.masterServerGroupInfo[groupIdx].masterServerGroupName, token );
+		}
+		else if( !stricmp( token, "MASTER_SERVER_NUMBER" ) )
+		{
+			token = g_script.GetNextToken( true );
+			g_cgv.masterServerGroupInfo[groupIdx].masterServerNumber = atoi( token );
+		}
+		else if( !stricmp( token, "MASTER_SERVER_IP" ) )
+		{
+			for (i=0; i<g_cgv.masterServerGroupInfo[groupIdx].masterServerNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				strcpy ( g_cgv.masterServerGroupInfo[groupIdx].listMasterServerIP[i], token );
+			}
+		}
+		else if( !stricmp( token, "MASTER_SERVER_PORT" ) )
+		{
+			for (i=0; i<g_cgv.masterServerGroupInfo[groupIdx].masterServerNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				g_cgv.masterServerGroupInfo[groupIdx].listMasterServerPort[i] = atoi( token );
+			}
+		}
+//		else if( !stricmp( token, "GAME_VERSION" ) )
+//		{ 
+//			token = g_script.GetNextToken( true );
+//			if( !token )  return false;
+////			strcpy ( g_cgv.gameVersion, token );
+//			strcpy( g_cgv.gameVersion, GTH_CLIENT_GAME_VERSION );
+//
+//			if( strstr( g_cgv.gameVersion, "dev" ) != NULL ) 
+//			{
+//				g_cgv.isTestServer = true;
+//			}
+//			else
+//			{ 
+//				g_cgv.isTestServer = false;
+//			}
+//		}
+		else if( !stricmp( token, "SUB_VERSION" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			strcpy ( g_cgv.subVersion, token );
+			if( !stricmp( g_cgv.subVersion, "DEVELOPER" ) ) 
+			{
+				g_cgv.isDeveloper = true;
+			}
+			else 
+			{
+				g_cgv.isDeveloper = false;
+			}
+		}
+		else if( !stricmp( token, "LANGUAGE_TYPE" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			if( !stricmp( token, "KOERAN" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_KOREAN;
+			else if( !stricmp( token, "ENGLISH" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_ENGLISH;
+			else if( !stricmp( token, "JAPANESE" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_JAPANESE;
+			else if( !stricmp( token, "CHINESE" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_SIMPLIFIED_CHINESE;
+			else if( !stricmp( token, "TAIWAN" ) ) g_cgv.languageType = GTH_LANGUAGE_TYPE_TRADITIONAL_CHINESE; // yonghak
+		}
+	}
+
+	return true;
+}
+
+void GTH_SetMyCharacterEvent( Fx_CHARACTER_t *character )
+{
+//AUTO		float dist;
+//AUTO	
+//AUTO		// 에너지팩 사용 delay time process
+//AUTO		if( g_cgv.epackRADelayTime > 0.0f )
+//AUTO		{
+//AUTO			g_cgv.epackRADelayTime -= g_timer.GetElapsedMilliTime();
+//AUTO			if( g_cgv.epackRADelayTime < 0.0 ) g_cgv.epackRADelayTime = 0.0f;
+//AUTO		}
+//AUTO		if( g_cgv.epackSADelayTime > 0.0f )
+//AUTO		{
+//AUTO			g_cgv.epackSADelayTime -= g_timer.GetElapsedMilliTime();
+//AUTO			if( g_cgv.epackSADelayTime < 0.0 ) g_cgv.epackSADelayTime = 0.0f;
+//AUTO		}
+//AUTO	
+//AUTO		if( g_cgv.tempSkillRecoveryTime > 0.0f )
+//AUTO		{
+//AUTO			g_cgv.tempSkillRecoveryTime -= g_timer.GetElapsedMilliTime();
+//AUTO			if( g_cgv.tempSkillRecoveryTime < 0.0f ) g_cgv.tempSkillRecoveryTime = 0.0f;
+//AUTO		}
+//AUTO	
+//AUTO		if( GTH_GetTargetEntityForKeyMode( character ) )
+//AUTO		{
+//AUTO			character->targetIdx = g_cgv.pTargetChar->idxOnServer;
+//AUTO			character->targetType = g_cgv.pTargetChar->entityType;
+//AUTO			g_cgv.myCharacterInfo->targetIdx = character->targetIdx;
+//AUTO			g_cgv.myCharacterInfo->targetType = character->targetType;
+//AUTO		} else 
+//AUTO		{
+//AUTO			g_cgv.pTargetChar = NULL;
+//AUTO			character->targetIdx = -1;
+//AUTO			character->targetType = -1;
+//AUTO			g_cgv.myCharacterInfo->targetIdx = character->targetIdx;
+//AUTO			g_cgv.myCharacterInfo->targetType = character->targetType;
+//AUTO		}
+//AUTO		if( !GTH_IsValidTargetAngleForKeyMode( character ) )
+//AUTO		{
+//AUTO			g_cgv.pTargetChar = NULL;
+//AUTO			character->targetIdx = -1;
+//AUTO			character->targetType = -1;
+//AUTO			g_cgv.myCharacterInfo->targetIdx = character->targetIdx;
+//AUTO			g_cgv.myCharacterInfo->targetType = character->targetType;
+//AUTO		}
+//AUTO	
+//AUTO		// 타겟 검사
+//AUTO		if( character->targetIdx < 0 || character->targetType < 0 )
+//AUTO			g_cgv.pTargetChar = NULL;
+//AUTO		else g_cgv.pTargetChar = GTH_GetTargetPointer( character );
+//AUTO	
+//AUTO		if( character->stat_recoveryTime > 0 ) 
+//AUTO		{
+//AUTO			character->stat_recoveryTime -= (int)g_timer.GetElapsedMilliTime();
+//AUTO	
+//AUTO			if( character->stat_recoveryTime == 0 ) character->stat_recoveryTime = -1;
+//AUTO			return;
+//AUTO		}
+//AUTO	
+//AUTO		if( character->stat_recoveryTime < 0 )
+//AUTO		{
+//AUTO			character->stat_recoveryTime = 0;
+//AUTO	
+//AUTO			if( g_cgv.saveEvent == GTH_EV_CHAR_SKILL )
+//AUTO			{
+//AUTO				if( !GTH_GetTargetAlive( character ) ) 
+//AUTO				{
+//AUTO					character->event = GTH_EV_CHAR_IDLE;
+//AUTO					g_cgv.saveEvent = -1;
+//AUTO					g_cgv.resendTargeting = false;
+//AUTO					g_cgv.attackSuccess = false;
+//AUTO				} 
+//AUTO				else
+//AUTO				{
+//AUTO					g_cgv.tempSkillRecoveryTime = 6000.0f;
+//AUTO					g_cgv.saveEvent = character->event;
+//AUTO					character->event = GTH_EV_CHAR_SKILL;
+//AUTO					g_cgv.sendSkillFlag = true;
+//AUTO				}
+//AUTO			}
+//AUTO			else if( g_cgv.saveEvent == GTH_EV_CHAR_ATTACK )
+//AUTO			{
+//AUTO				if( !GTH_GetTargetAlive( character ) ) 
+//AUTO				{
+//AUTO					character->event = GTH_EV_CHAR_IDLE;
+//AUTO					g_cgv.resendTargeting = false;
+//AUTO					g_cgv.attackSuccess = false;
+//AUTO					g_cgv.saveEvent = -1;
+//AUTO				} 
+//AUTO				else 
+//AUTO				{
+//AUTO					g_cgv.saveEvent = GTH_EV_CHAR_ATTACK;
+//AUTO					character->event = GTH_EV_CHAR_ATTACK;
+//AUTO					g_cgv.resendAttack = true;
+//AUTO					g_cgv.resendFlag = true;
+//AUTO					
+//AUTO					g_chatManager->DPrint( 700, 120, "RESEND ATTACK!!!" );
+//AUTO				}
+//AUTO			}
+//AUTO		}
+//AUTO	
+//AUTO		// keyboard mode
+//AUTO		if (character->isAlive)	
+//AUTO		{
+//AUTO			if(input->keys[VK_SHIFT]) 
+//AUTO			{
+//AUTO				g_cgv.keyRun = !g_cgv.keyRun;
+//AUTO				input->keys[VK_SHIFT] = 0;
+//AUTO			}
+//AUTO	
+//AUTO			if(input->keys['W']) 
+//AUTO			{
+//AUTO				if( GTH_CanMove() )
+//AUTO				{
+//AUTO	
+//AUTO					if ( g_cgv.keyRun )
+//AUTO					{
+//AUTO						if(input->keys['A']) 
+//AUTO							character->event = GTH_EV_CHAR_RUNLEFT;
+//AUTO						else if(input->keys['D'])
+//AUTO							character->event = GTH_EV_CHAR_RUNRIGHT;
+//AUTO						else
+//AUTO							character->event = GTH_EV_CHAR_RUN;
+//AUTO					}
+//AUTO					else
+//AUTO					{
+//AUTO						if(input->keys['A']) 
+//AUTO							character->event = GTH_EV_CHAR_WALKLEFT;
+//AUTO						else if(input->keys['D'])
+//AUTO							character->event = GTH_EV_CHAR_WALKRIGHT;
+//AUTO						else
+//AUTO							character->event = GTH_EV_CHAR_WALK;
+//AUTO					}
+//AUTO	
+//AUTO				}
+//AUTO			}
+//AUTO			else if(input->keys['S']) 
+//AUTO			{
+//AUTO				if( GTH_CanMove() )
+//AUTO				{
+//AUTO					if(input->keys['A']) 
+//AUTO						character->event = GTH_EV_CHAR_BACKLEFT;
+//AUTO					else if(input->keys['D'])
+//AUTO						character->event = GTH_EV_CHAR_BACKRIGHT;
+//AUTO					else
+//AUTO						character->event = GTH_EV_CHAR_BACK;
+//AUTO				}
+//AUTO			}
+//AUTO			else if(input->keys['A']) 
+//AUTO			{
+//AUTO				if( GTH_CanMove() ) character->event = GTH_EV_CHAR_TURNLEFT;
+//AUTO			}
+//AUTO			else if(input->keys['D']) 
+//AUTO			{
+//AUTO				if( GTH_CanMove() ) character->event = GTH_EV_CHAR_TURNRIGHT;
+//AUTO			}
+//AUTO			else if(input->mouse.left_button && character->event != GTH_EV_CHAR_ATTACK )	// attack
+//AUTO			{
+//AUTO				if( GTH_CanMove() )
+//AUTO				{
+//AUTO					if( character->event != GTH_EV_CHAR_ATTACK )
+//AUTO					{
+//AUTO						g_cgv.resendAttack = true;
+//AUTO						g_cgv.resendFlag = true;
+//AUTO					}
+//AUTO					character->event = GTH_EV_CHAR_ATTACK;
+//AUTO					g_cgv.saveEvent = GTH_EV_CHAR_ATTACK;
+//AUTO				}
+//AUTO			} else if( input->mouse.GetRightClicked() )
+//AUTO			{
+//AUTO				if( g_cgv.tempSkillRecoveryTime <= 0.0f )
+//AUTO				{			
+//AUTO					if( GTH_GetTargetAlive( character ) && character->curSA >= 20 ) 
+//AUTO					{
+//AUTO						dist = VectorDistance( g_cgv.pTargetChar->position, character->position );
+//AUTO						if( dist < 200.0f ) 
+//AUTO						{
+//AUTO							g_cgv.saveEvent = GTH_EV_CHAR_SKILL;
+//AUTO						}
+//AUTO					}
+//AUTO				}
+//AUTO			} else if( !( character->event == GTH_EV_CHAR_SIT || character->event == GTH_EV_CHAR_STAND ) )  character->event = GTH_EV_CHAR_IDLE;
+//AUTO		}
+//AUTO		// 이벤트 실행시 충돌될지를 미리 검사하여 충돌시 현재 입력된 이벤트를 IDLE로 변경처리한다
+//AUTO		if ( GTH_MyCharacter_CheckCollision() )
+//AUTO			character->event = GTH_EV_CHAR_IDLE;
+}
+
+void GTH_SetMyCharacterMouseEvent( Fx_CHARACTER_t *character )
+{
+	vec3_t dir;
+	vec3_t target;
+	vec3_t angles;
+	float dist, attackLength;
+//	int rangeFlag;
+
+	// recovery time > 0, don't execute click event
+	if( !character->atk_changeEvent ) return;
+
+	switch( g_cgv.clickEvent )
+	{
+		// none
+	case GTH_CEV_CHAR_NONE :
+		{
+			if( g_cursor->IsPlayerTargetedMove() )
+			{
+				if( g_cursor->IsOverPointerTargetPos( character->position ) )
+				{
+					g_cursor->QuitPlayerTargetedMove();
+					g_cgv.resendFlag = true;
+					character->event = GTH_EV_CHAR_IDLE;
+				}
+			}
+		}
+		break;
+	
+		// idle
+	case GTH_CEV_CHAR_IDLE :
+		{
+			g_cgv.resendFlag = true;
+			g_cgv.resendTargeting = false;
+			g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		}
+		break;
+	
+		// attack
+	case GTH_CEV_CHAR_ATTACK :
+		{
+			dist = g_GameTarget.GTH_GetTargetDistance( character );
+			if( dist < 0.00000f )
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendTargeting = false;
+				g_cgv.saveEvent = -1;
+				return;
+			}
+
+			if( character->isTransform )
+			{
+				attackLength = FindTransformAttackLength(character->transformEntityIdx, character->transformType);
+				if( attackLength == 0.0f )
+					attackLength = (float)g_cgv.myCharacterInfo->calAttackLength;
+			}
+			else
+			{
+				attackLength = (float)g_cgv.myCharacterInfo->calAttackLength;
+			}
+
+			attackLength = (float)attackLength * 0.8f;
+			
+			g_cgv.mouseClickEventDistance = attackLength;
+			if( dist < attackLength )
+			{
+				g_cursor->QuitPlayerTargetedMove();
+				
+				g_GameTarget.GTH_SetAngleToTarget( character );
+
+				// 공격이 아니었다면, 처음 공격임을 셋팅
+//				if( character->event != GTH_EV_CHAR_ATTACK )
+				if( character->ani_curGroup != FX_ANIM_GROUP_ATTACK )
+				{
+//					if( character->isTransform == true )
+//						g_cgv.resendAttack		= true;
+
+					character->event = GTH_EV_CHAR_ATTACK;
+					character->atk_playAnim = false;
+					g_cgv.resendTargeting = false;
+					g_cgv.resendFlag = true;
+					g_cgv.resendAttack = true;
+				}
+				else
+				{
+					// 2003-10-06 : 종남
+					// 임시
+					g_cgv.saveEvent = GTH_EV_CHAR_ATTACK;
+				}
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;	
+				return;
+			}
+			else
+			{
+				g_cgv.resendTargeting = true;
+			}
+		}
+		break;
+
+		// skill
+	case GTH_CEV_CHAR_SKILL :
+		{
+			//스킬 클릭 ?
+			if( !g_SkillLogic.GTH_SkillClickEvent() ) 
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				return;
+			}
+		}
+		break;
+
+		// npc request
+	case GTH_CEV_CHAR_NPC_REQUEST :
+		{
+			dist = g_GameTarget.GTH_GetTargetDistance( character );
+			if( dist < 0.00000f )
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendTargeting = false;
+				g_cgv.saveEvent = -1;
+				return;
+			}
+			g_cgv.mouseClickEventDistance = AVAILABLE_DISTANCE_ENTITYMENU * 0.8f;
+			
+			if( dist < AVAILABLE_DISTANCE_ENTITYMENU * 0.8f )
+			{
+				g_cursor->QuitPlayerTargetedMove();
+				
+				// 요괴 선인 이상이면 엔피씨를 이용할 수 없다.
+				//if( GetChaosClass( g_pApp->m_myCharacter ) >= CHAOS_MONSTER )
+
+				// 2004-09-14 23:32, elfshadow begin		
+				// 카오 수치가 높으면서 상대가 NPC 군루가 아닐경우에만 대화 할수 없도록 수정 
+				// if( GetChaosClass( g_pApp->m_myCharacter ) >= CHAOS_MONSTER  &&
+				// g_cgv.pTargetChar->tableIdx != 195 ) 중국수정
+		
+		
+						//if(g_pApp->m_myCharacter->chaosPoint>10 )
+						//{
+							// PK_System 2004-10-22, SoonChun. begin
+													
+						/*
+							if(	g_cgv.pTargetChar->tableIdx == 114 ||	g_cgv.pTargetChar->tableIdx == 115 || 	
+														g_cgv.pTargetChar->tableIdx == 25)
+													{	
+														// "카오수치가 높아 대화를 할 수 없습니다.
+														g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 771 ) );
+													}
+						*/
+						
+							if(g_pApp->m_myCharacter->chaosPoint>29500)
+							{
+								if(g_cgv.pTargetChar->tableIdx == 13 || g_cgv.pTargetChar->tableIdx == 14 || 
+									g_cgv.pTargetChar->tableIdx == 18 || g_cgv.pTargetChar->tableIdx == 104 || 
+									g_cgv.pTargetChar->tableIdx == 105 || g_cgv.pTargetChar->tableIdx == 106 || 
+									g_cgv.pTargetChar->tableIdx == 107||g_cgv.pTargetChar->tableIdx == 108||
+									g_cgv.pTargetChar->tableIdx == 109 ||g_cgv.pTargetChar->tableIdx == 110 ||
+									g_cgv.pTargetChar->tableIdx == 111 ||g_cgv.pTargetChar->tableIdx == 112||
+									g_cgv.pTargetChar->tableIdx == 113 ||g_cgv.pTargetChar->tableIdx == 119||
+									g_cgv.pTargetChar->tableIdx == 120 ||g_cgv.pTargetChar->tableIdx == 121||
+									g_cgv.pTargetChar->tableIdx == 122 ||g_cgv.pTargetChar->tableIdx == 123||
+									g_cgv.pTargetChar->tableIdx == 124)
+								{
+										g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 771 ) );
+								}
+		
+								else 
+								{
+										GTH_SendMessage_RequestNpcChat( g_cgv.pTargetChar->idxOnServer );
+								}
+							
+							}
+						
+							else
+							{
+								GTH_SendMessage_RequestNpcChat( g_cgv.pTargetChar->idxOnServer );
+							}
+							// PK_System 2004-10-22, SoonChun.end
+						
+						//}
+		
+			//	else
+			//	{
+			//		GTH_SendMessage_RequestNpcChat( g_cgv.pTargetChar->idxOnServer );
+		//		}
+				g_cursor->QuitPlayerTargetedMove();
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendFlag = true;
+				g_cgv.resendTargeting = false;
+				return;
+			}
+			else
+			{
+				g_cgv.resendTargeting = true;
+			}
+		}
+		break;
+		
+		// pc request
+	case GTH_CEV_CHAR_PC_REQUEST :
+		{
+			dist = g_GameTarget.GTH_GetTargetDistance( character );
+			if( dist < 0.00000f )
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendTargeting = false;
+				g_cgv.saveEvent = -1;
+
+				return;
+			}
+			g_cgv.mouseClickEventDistance = AVAILABLE_DISTANCE_ENTITYMENU * 0.8f;
+			
+			if( dist < AVAILABLE_DISTANCE_ENTITYMENU * 0.8f )
+			{
+				g_cursor->QuitPlayerTargetedMove();
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendFlag = true;
+				g_cgv.resendTargeting = false;
+
+				// 개인상점
+				// 2004-04-11 17:50, Jongnam
+				if( g_cgv.pTargetChar->boothState == 2 )
+				{
+					// 상점은 이용할수 있다. 등급에 따라 거래 가격이 달라라진다.
+					// 혼돈 선인 이상이면 개인상점을 이용할 수 없다.
+					if(  g_pApp->m_myCharacter->chaosPoint > 29500 )
+					{
+						// "카오수치가 높아 개인상점을 이용할 수 없습니다."
+						g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 772 ) );
+					}
+					else
+					{
+						GTH_SendMessage_ItemSystem_BoothBuyOpen( g_cgv.pTargetChar->idxOnServer );
+					}
+				}
+				return;
+			}
+			else
+			{
+				g_cgv.resendTargeting = true;
+			}
+		}
+		break;
+	case GTH_CEV_CHAR_FOLLOW :
+		{
+			dist = g_GameTarget.GTH_GetTargetDistance( character );
+
+			// [복사버그] elfshadow 2005-07-05 11:18 begin			
+			if( g_ifMng->CheckConditionalWindow() ) 
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendTargeting = false;
+				g_cgv.saveEvent = -1;
+				return;
+			}
+			// elfshadow 2005-07-05 11:18 end			
+
+			if( dist < 0.00000f )			 					
+			{
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendTargeting = false;
+				g_cgv.saveEvent = -1;
+				return;
+			}
+			g_cgv.mouseClickEventDistance = AVAILABLE_DISTANCE_ENTITYMENU * 0.8f;
+			
+			if( dist < AVAILABLE_DISTANCE_ENTITYMENU * 0.8f )
+			{
+				g_cursor->QuitPlayerTargetedMove();
+				character->event = GTH_EV_CHAR_IDLE;
+				return;
+			}
+			else
+			{
+				g_cgv.resendTargeting = true;
+			}
+		}
+		break;
+
+		// pickup item
+	case GTH_CEV_CHAR_PICKUP_ITEM :
+		{
+			if( !g_cursor->IsPlayerTargetedMove() ) break;
+			
+			g_cursor->GetTargetPos( target );
+			dist = VectorDistance( target, character->position );
+			g_cgv.mouseClickEventDistance = AVAILABLE_DISTANCE_PICKUPITEM * 0.5f;
+			if( dist < AVAILABLE_DISTANCE_PICKUPITEM * 0.5f )
+			{
+				if( g_cgv.targetItemIdxOnServer >= 0 ) GTH_SendMessage_PickUpItem( g_cgv.targetItemIdxOnServer );
+				g_cursor->QuitPlayerTargetedMove();
+				g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+				character->event = GTH_EV_CHAR_IDLE;
+				g_cgv.resendFlag = true;
+				g_cgv.resendTargeting = false;
+				return;
+			}
+		}
+		break;
+	}
+
+	if( g_cursor->IsPlayerTargetedMove() )
+	{
+		if( !g_cursor->IsAdjustedPlayerAngle() )
+		{
+			g_cursor->GetTargetPos( target );
+			VectorSubtract( dir , target , character->position );
+			dir[2] = 0.0f;
+			VectorNormalize( dir );
+			VectorToAngles( dir , angles );
+			
+			VectorCopy(character->mousePos, target);
+			
+			character->mouseAngle = angles[ YAW ];	// 목표 방향 각도 설정
+			g_cursor->SetPlayerAngleAdjusted();
+			
+			character->event = GTH_EV_CHAR_MOUSERUN;
+		}
+	}
+
+	// 이벤트 실행시 충돌될지를 미리 검사하여 충돌시 현재 입력된 이벤트를 IDLE로 변경처리한다
+	if ( GTH_MyCharacter_CheckCollision() )
+	{
+		character->event = GTH_EV_CHAR_IDLE;
+		g_cgv.resendFlag = true;
+		g_cgv.resendTargeting = false;
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+	}
+	
+	if ( character->event == GTH_EV_CHAR_IDLE)
+	{
+		g_cgv.keyRun = false;
+		g_cursor->QuitPlayerTargetedMove();
+	}
+}
+
+void GTH_SendMyCharacterEvent()//
+{
+	//관전모드 
+	if(TRUE == g_pApp->m_myCharacter->m_bObserveMode) return;
+	
+	if ( g_pApp->m_myCharacter->event != g_pApp->m_myCharacter->oldEvent || g_cgv.resendFlag )
+	{
+		g_cgv.resendFlag = false;
+		
+		// send event message
+		switch ( g_pApp->m_myCharacter->event )
+		{
+		case GTH_EV_CHAR_IDLE:
+			GTH_SendEventMessage_Idle();
+			GTH_UpdateSendedZPos();
+
+		break;
+
+		case GTH_EV_CHAR_WALK:
+			GTH_SendEventMessage_Walk();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_WALKLEFT:
+			GTH_SendEventMessage_WalkLeft();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_WALKRIGHT:
+			GTH_SendEventMessage_WalkRight();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_BACK:
+			GTH_SendEventMessage_Back();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_BACKLEFT:
+			GTH_SendEventMessage_BackLeft();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_BACKRIGHT:
+			GTH_SendEventMessage_BackRight();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_RUN:
+			GTH_SendEventMessage_Run();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_RUNLEFT:
+			GTH_SendEventMessage_RunLeft();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_RUNRIGHT:
+			GTH_SendEventMessage_RunRight();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_TURNLEFT:
+			GTH_SendEventMessage_TurnLeft();
+			break;
+
+		case GTH_EV_CHAR_TURNRIGHT:
+			GTH_SendEventMessage_TurnRight();
+			break;
+
+		case GTH_EV_CHAR_MOVELEFT:
+			GTH_SendEventMessage_MoveLeft();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_MOVERIGHT:
+			GTH_SendEventMessage_MoveRight();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_ATTACK:
+			if( g_cgv.resendAttack )
+				GTH_SendEventMessage_Attack();
+
+			g_cgv.resendAttack = false;
+			break;
+
+		case GTH_EV_CHAR_MOUSEWALK:
+			GTH_SendEventMessage_MouseWalk();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_MOUSERUN:
+			GTH_SendEventMessage_MouseRun();
+			GTH_UpdateSendedZPos();
+			break;
+
+		case GTH_EV_CHAR_SIT:
+			GTH_SendEventMessage_Sit();
+			break;
+
+		case GTH_EV_CHAR_STAND:
+			GTH_SendEventMessage_Stand();
+			break;
+
+		case GTH_EV_CHAR_SKILL:			
+			if( g_cgv.sendSkillFlag )
+			{
+				// [단전투장이벤트] elfshadow 2006-01-19 11:12 begin
+				// 주석 처리 합니다. 밑에 내용 자체가 버그 입니다.
+				//두개의 키
+//				if(GTH_SendEventMessage_Skill())
+//				{					
+//					//버그 수정 2005-4-7
+//					//스킬 아이템이 아닌경우. 쿨타임 설정
+//					if(globalVariable_t::SELECT_ITEM != g_cgv.Skill.iSelectSkillUseType)
+//					{
+//						g_cgv.myCharacterInfo->skillCastingtime = g_cgv.myCharacterInfo->calAttackDelay;
+//					}
+//				}
+
+				GTH_SendEventMessage_Skill();
+				//유료 부활
+				g_SkillLogic.UnSelectSkill();
+	
+			}
+			break;
+			
+		case GTH_EV_CHAR_BEFORE_TELEPORT:
+			if( g_cgv.sendTeleportFlag )
+			{
+				GTH_SendEventMessage_Stand();
+				GTH_SendEventMessage_Before_Teleport();
+			}
+			break;
+
+		case GTH_EV_CHAR_TELEPORT:
+			if( g_cgv.sendSkillFlag )
+			{
+			}
+			break;
+
+		// (vemer 2004-06-17 11:34)
+		case GTH_EV_CHAR_SHOUT:
+			GTH_SendEventMessage_SocialAnimation(GTH_EV_CHAR_SHOUT);
+			break;
+		case GTH_EV_CHAR_BOW:
+			GTH_SendEventMessage_SocialAnimation(GTH_EV_CHAR_BOW);
+			break;
+		default:
+			break;
+		}
+		g_pApp->m_myCharacter->oldEvent = g_pApp->m_myCharacter->event;
+
+	}
+}
+
+void GTH_ExecuteCharacterEvent()
+{
+	int i;
+	Fx_CHARACTER_t *character;
+	int numCharacter;
+	int direction;
+
+	character = &g_charManager->m_Characters[0];
+	numCharacter = g_charManager->m_iNumCharacters;
+
+	for (i=0; i<numCharacter; i++, character++)
+	{
+		//관전모드 
+		if(TRUE == character->m_bObserveMode)	continue;
+		
+		// draw damage
+		if( character->entityType == ENTITY_MONSTER || character->entityType == ENTITY_NPC )
+		{
+			g_ifMng->m_numCtl->ReadyDamage( character );
+			if( character->summonValidTime > 0.0f )
+			{
+				character->summonValidTime -= g_timer.GetElapsedMilliTime();
+			}
+		}
+		else if( character->entityType == ENTITY_PC )
+		{
+//AUTO				if( !GTH_HaveWeapon( character ) ) 
+//AUTO				{
+//AUTO					g_interface->m_numberCtl->ReadyDamage( character );
+//AUTO				}
+//AUTO				else if( character->flag_rangeFlag == DISABLE_RANGE_ATTACK ) 
+//AUTO				{
+			/* 2003-10-01 : 삭제 */ 
+//AUTO					g_ifMng->m_numCtl->ReadyDamage( character );
+//AUTO				}
+		}
+
+		GTH_CheckValidCharacterEvent( character );
+		
+		switch(character->event)
+		{
+		case GTH_EV_CHAR_IDLE:
+			GTH_Character_Idle( character );
+			break;
+
+		case GTH_EV_CHAR_WALK:
+			if ( character->entityType == ENTITY_PC )
+			{
+				GTH_Character_Walk( character );
+			}
+			else if (character->entityType == ENTITY_MONSTER || character->entityType == ENTITY_NPC )
+			{
+				direction = GTH_AdjustDirection( character->mouseAngle, character->angles[YAW] );
+				if (direction == 1)
+				{
+					GTH_Character_MouseRight( character );
+				}
+				else if (direction == -1)
+				{
+					GTH_Character_MouseLeft( character );
+				}
+				GTH_Character_MonsterWalk( character );
+			}
+			break;
+
+		case GTH_EV_CHAR_BACK:
+			GTH_Character_Back( character );
+			break;
+
+		case GTH_EV_CHAR_TURNLEFT:
+			GTH_Character_TurnLeft( character );
+			break;
+
+		case GTH_EV_CHAR_TURNRIGHT:
+			GTH_Character_TurnRight( character );
+			break;
+
+		case GTH_EV_CHAR_WALKLEFT:
+			GTH_Character_Walk( character );
+			GTH_Character_TurnLeft( character );
+			break;
+
+		case GTH_EV_CHAR_WALKRIGHT:
+			GTH_Character_Walk( character );
+			GTH_Character_TurnRight( character );
+			break;
+
+		case GTH_EV_CHAR_BACKLEFT:
+			GTH_Character_Back( character );
+			GTH_Character_TurnLeft( character );
+			break;
+
+		case GTH_EV_CHAR_BACKRIGHT:
+			GTH_Character_Back( character );
+			GTH_Character_TurnRight( character );
+			break;
+
+		case GTH_EV_CHAR_RUN:
+			if ( character->entityType == ENTITY_PC )
+			{
+				GTH_Character_Run( character );
+			}
+			else if (character->entityType == ENTITY_MONSTER || character->entityType == ENTITY_NPC )
+			{
+				direction = GTH_AdjustDirection( character->mouseAngle, character->angles[YAW] );
+				if (direction == 1)
+				{
+					GTH_Character_MouseRight( character );
+				}
+				else if (direction == -1)
+				{
+					GTH_Character_MouseLeft( character );
+				}
+				GTH_Character_MonsterRun( character );
+			}
+			break;
+
+		case GTH_EV_CHAR_RUNLEFT:
+			GTH_Character_Run( character );
+			GTH_Character_TurnLeft( character );
+			break;
+
+		case GTH_EV_CHAR_RUNRIGHT:
+			GTH_Character_Run( character );
+			GTH_Character_TurnRight( character );
+			break;
+
+		case GTH_EV_CHAR_MOVELEFT:
+			GTH_Character_MoveLeft( character );
+			break;
+
+		case GTH_EV_CHAR_MOVERIGHT:
+			GTH_Character_MoveRight( character );
+			break;
+
+		case GTH_EV_CHAR_ATTACK:
+			GTH_Character_Attack( character );
+			break;
+
+		case GTH_EV_CHAR_DIE:
+			GTH_Character_Die( character );
+			break;
+
+		case GTH_EV_CHAR_RESPAWN:
+			GTH_Character_Respawn( character );
+			break;
+
+		case GTH_EV_CHAR_MOUSEWALK:
+			direction = GTH_AdjustDirection( character->mouseAngle, character->angles[YAW] );
+			if (direction == 1)
+			{
+				GTH_Character_MouseRight( character );
+			}
+			else if (direction == -1)
+			{
+				GTH_Character_MouseLeft( character );
+			}
+				
+			GTH_Character_MouseWalk( character );
+			break;
+
+		case GTH_EV_CHAR_MOUSERUN:
+			direction = GTH_AdjustDirection( character->mouseAngle, character->angles[YAW] );
+			if (direction == 1)
+			{
+				GTH_Character_MouseRight( character );
+			}
+			else if (direction == -1)
+			{
+				GTH_Character_MouseLeft( character );
+			}
+
+			GTH_Character_MouseRun( character );
+			break;
+			
+		case GTH_EV_CHAR_STUN :
+			GTH_Character_Stun( character );
+			break;
+
+		//왕귀인
+		case GTH_EV_CHAR_PC_STUN :
+			GTH_Character_PcStun( character );
+			break;
+			
+		case GTH_EV_CHAR_SIT:
+			GTH_Character_Sit( character );
+			break;
+		case GTH_EV_CHAR_STAND:
+			GTH_Character_Stand( character );
+			break;
+		case GTH_EV_CHAR_SKILL :
+			g_SkillApp.GTH_Character_Skill( character );
+			break;
+
+		case GTH_EV_CHAR_SKILLCASTING :
+			g_SkillApp.GTH_Character_SkillCasting( character );
+			break;
+
+		case GTH_EV_CHAR_PUSHED:
+//			GTH_Character_Pushed( character );
+			break;
+
+		case GTH_EV_CHAR_SHOUT:
+			GTH_Character_Shout( character );
+			break;
+		case GTH_EV_CHAR_BOW:
+			GTH_Character_Bow( character );
+			break;
+
+		default:
+			break;
+		}
+
+		g_soundMng->Play( character );
+
+		// 플레이어 위치 보정
+		GTH_DeadReckoning( character );
+
+	} // of for i
+}
+
+
+void GTH_DeadReckoning(Fx_CHARACTER_t *character)
+{
+	if( character->event == GTH_EV_CHAR_MOUSERUN || character->event == GTH_EV_CHAR_MOUSEWALK )
+		return;
+
+
+	// (vemer 2004-04-29 11:11)
+	// 근데 이렇게 해놓으면 좌표 보정은 나중에 어케 하지?
+	// 아마도 튕겨서 접근할텐데....ㅠ.ㅠ
+	if( character->event == GTH_EV_CHAR_PUSHED )
+	{
+		character->useInterpolation = false;
+		return;
+	}
+
+	if ( character->useInterpolation ) // 동기화 위치 보정
+	{
+		GTH_CharacterInterpolation( character );
+	}
+}
+
+void GTH_CharacterInterpolation(Fx_CHARACTER_t *character)
+{
+	float distance, speed;
+	vec3_t delta, position;
+
+	distance = GTH_GetDistance2D(character->syncPosition, character->position);
+	speed = INTERPOLATION_SPEED * character->moveSpeed * g_timer.GetElapsedTime();
+	if (distance > speed)
+	{
+		VectorSubtract(delta, character->syncPosition, character->position);
+		delta[2] = 0;
+		VectorNormalize( delta );
+		VectorScale( delta , delta , speed );
+		VectorCopy( position , character->position );
+		g_move->Pmove( position , delta , character->angles );
+		VectorCopy( character->position , position );
+	}
+	else
+	{
+		VectorCopy(character->position, character->syncPosition);
+		character->useInterpolation = false;
+	}
+}
+
+
+void GTH_Character_Idle(Fx_CHARACTER_t *character)
+{
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE);
+}
+
+void GTH_Character_Walk(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	character->SetupVectors();
+	character->GetFwdVector( delta );
+	delta[2] = 0;
+	VectorNormalize( delta );
+	speed = SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK);
+}
+
+void GTH_Character_MonsterWalk(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+	vec3_t dir;
+
+//	float distance;
+
+	VectorClear( dir );
+	dir[YAW] = character->mouseAngle;
+
+	AngleToVector( dir , delta );
+
+	speed = SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , dir );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , dir );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK);
+}
+
+
+void GTH_Character_MonsterRun(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+	vec3_t dir;
+
+	VectorClear( dir );
+	dir[YAW] = character->mouseAngle;
+
+	AngleToVector( dir , delta );
+
+	// monster uses MONSTER_RUN_SCALE
+	speed = MONSTER_RUN_SCALE * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , dir );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , dir );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_RUN );
+}
+
+void GTH_Character_Back(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	character->SetupVectors();
+	character->GetFwdVector( delta );
+	VectorNegate( delta , delta );//
+	delta[2] = 0;
+	VectorNormalize( delta );
+	speed = BACK_SCALE * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK_BACK);
+}
+
+
+void GTH_Character_Run(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	character->SetupVectors();
+	character->GetFwdVector( delta );
+	delta[2] = 0;
+	VectorNormalize( delta );
+	speed = RUN_SCALE * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_RUN );
+
+}
+
+void GTH_Character_TurnLeft(Fx_CHARACTER_t *character)
+{
+	vec3_t rotate;
+
+	VectorClear( rotate );
+//	rotate[ YAW ] = (float) SIZE_MOUSE_ROTATE * g_timer.GetElapsedTime() * 20;
+	rotate[ YAW ] = (float) TURN_SCALE * g_timer.GetElapsedTime();
+	VectorAdd( character->angles , character->angles , rotate );
+	if ( character->angles[ YAW ] >= 360 ) character->angles[ YAW ] -= 360.0f;
+
+	character->SetupVectors();
+}
+
+void GTH_Character_TurnRight(Fx_CHARACTER_t *character)
+{
+	vec3_t rotate;
+
+	VectorClear( rotate );
+//	rotate[ YAW ] = -(float) SIZE_MOUSE_ROTATE * g_timer.GetElapsedTime() * 20;
+	rotate[ YAW ] = -(float) TURN_SCALE * g_timer.GetElapsedTime();
+	VectorAdd( character->angles , character->angles , rotate );
+	if ( character->angles[ YAW ] < 0 ) character->angles[ YAW ] += 360.0f;
+
+	character->SetupVectors();
+}
+
+void GTH_Character_MoveLeft(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	character->SetupVectors();
+	character->GetRightVector( delta );
+	VectorNegate( delta , delta );//
+	delta[2] = 0;
+	VectorNormalize( delta );
+	speed = SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK);
+}
+
+void GTH_Character_MoveRight(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	character->SetupVectors();
+	character->GetRightVector( delta );
+	delta[2] = 0;
+	VectorNormalize( delta );
+	speed = SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK);
+}
+ 
+void GTH_Character_Attack(Fx_CHARACTER_t *character)
+{
+	int itemIdx = -1;
+	int tableIdx, attackID;
+	float attackSpeed;
+//	vec3_t target;
+	Fx_CHARACTER_t* defender = NULL;
+
+	if( character->curRA <= 0 || character->event == GTH_EV_CHAR_DIE ) return;
+
+/*	defender = GTH_GetTargetPointer( character->targetType, character->targetIdx );
+	if( defender == NULL )	return;
+	if( defender->event == GTH_EV_CHAR_DIE )
+	{
+		character->event == GTH_EV_CHAR_IDLE;
+		return;
+	}
+*/	
+	if( character->entityType == ENTITY_PC )
+	{
+		if( character->atk_playAnim )
+		{
+			// not range attack
+			if( character->isTransform )
+			{
+				attackID = ANIM_ITEM_ATTACK_0;
+			}
+			else if( character->attackComboType == ATTACK_COMBO_TYPE_RANGE || character->attackComboType == ATTACK_COMBO_TYPE_NEAR_RANGE ) 
+			{
+				attackID = ANIM_ITEM_ATTACK_3;
+			}
+			else if( character->attackComboType == ATTACK_COMBO_TYPE_NOT )
+			{
+				attackID = ANIM_ITEM_ATTACK_3;
+			}
+			else if( character->attackComboType == ATTACK_COMBO_TYPE_0 )
+			{
+				attackID = ANIM_ITEM_ATTACK_0;
+			}
+			else if( character->attackComboType == ATTACK_COMBO_TYPE_1 )
+			{
+				attackID = ANIM_ITEM_ATTACK_1;
+			}
+			else if( character->attackComboType == ATTACK_COMBO_TYPE_2 )
+			{
+				attackID = ANIM_ITEM_ATTACK_2;
+			}
+			else attackID = ANIM_ITEM_ATTACK_3;
+
+			attackSpeed = character->stat_attackSpeed;
+//			if( attackSpeed > 1200.0f ) attackSpeed = 1200.0f;
+			GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, attackID, true, &attackSpeed );			
+		} 
+		else
+		{
+			GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_PRE_ATTACK );
+
+			// 2004-10-20 13:50, elfshadow begin			
+			ShowLogInfo("프리어텍셋팅");
+			// 2004-10-20 13:50, elfshadow end
+			
+		}
+	}
+	else if( character->entityType == ENTITY_MONSTER || character->entityType == ENTITY_NPC )
+	{
+		if( character->ani_curSetID == ANIM_ITEM_ATTACK_0 )
+		{
+			GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		}
+		else if( character->atk_playAnim )
+		{
+			character->atk_playAnim = false;
+			attackSpeed = character->stat_attackSpeed;
+			
+			// 2004-04-13 10:11, Jongnam
+			if( attackSpeed > 1200.0f ) attackSpeed = 1200.0f;
+			GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_ATTACK_0, true, &attackSpeed );
+
+			tableIdx = character->tableIdx;
+	
+		} 
+		else GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+	}
+}
+
+void GTH_ChangeAnimation(Fx_CHARACTER_t *character, int	aniSetType,	int aniSetID, bool in_forceUpdate, float* attackSpeed,
+						bool in_forceChange	)
+{
+	int mainClass, itemIdx, monSetIdx;
+	int tableIdx;
+	
+	if( character->entityType == ENTITY_PC )
+	{
+		if( !character->isTransform )
+		{
+			tableIdx = character->tableIdx;
+			if( (! in_forceUpdate) && character->ani_curSetType == aniSetType && character->ani_curSetID == aniSetID ) 
+			{
+				return;
+			}
+			if( !( character->ani_curSetType == aniSetType && character->ani_curSetID == aniSetID ) ) 
+			{
+				if( g_charManager->m_pAnimManager->IsComboAttack( character->ani_curIdx ) && character->entityType == ENTITY_PC ) 
+				{
+					if( aniSetID != ANIM_ITEM_PRE_ATTACK ) in_forceChange = true;
+				}
+			}
+			
+			if (aniSetType == ANIMTYPE_BYITEM)
+			{
+				if ( character->equipNumber > 0 )
+				{
+					itemIdx = character->equipment[0];
+					mainClass = g_itemTable[itemIdx].classIdx;
+					
+					if ( g_itemClassTable[mainClass].attackAtt )
+					{
+						g_charManager->ChangeAnimation(character->ID, aniSetType, g_itemTable[itemIdx].attackAni[tableIdx], aniSetID,	attackSpeed, in_forceChange	);
+					}
+					else
+					{
+						g_charManager->ChangeAnimation(character->ID, aniSetType, 0, aniSetID,	attackSpeed, in_forceChange );
+					}
+				}
+				else
+				{
+					g_charManager->ChangeAnimation( character->ID, aniSetType, 0, aniSetID,	attackSpeed, in_forceChange );
+				}
+			} else if( aniSetType == ANIMTYPE_BYSKILL )
+			{
+				g_charManager->ChangeAnimation(character->ID, aniSetType, 0, aniSetID,	attackSpeed, in_forceChange );
+			}
+
+		}
+		else
+		{
+			if( character->ani_curSetID == aniSetID ) return;
+			
+			monSetIdx = g_monsterTable[character->transformEntityIdx].aniSetType;
+			if (aniSetType == ANIMTYPE_BYITEM)
+			{
+				g_charManager->ChangeAnimation( character->ID, monSetIdx, 0, aniSetID,	attackSpeed, in_forceChange );
+			} else if( aniSetType == ANIMTYPE_BYSKILL )
+			{
+				g_charManager->ChangeAnimation( character->ID, monSetIdx, 0, ANIM_ITEM_ATTACK_0, attackSpeed, in_forceChange );
+			}
+		}
+	}
+	else if( character->entityType == ENTITY_MONSTER || character->entityType == ENTITY_NPC )
+	{
+		if( character->ani_curSetID == aniSetID ) return;
+		
+		monSetIdx = g_monsterTable[character->tableIdx].aniSetType;				
+		g_charManager->ChangeAnimation( character->ID, monSetIdx, 0, aniSetID,	attackSpeed, in_forceChange );										
+
+	}
+}
+
+void GTH_Character_Die(Fx_CHARACTER_t *character)
+{
+	character->isAlive = false;
+	character->curRA = 0;
+	
+	if( character->isNewChar )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_DEAD_0, true, NULL, true );
+		return;
+	}
+
+	if( character->idxOnServer == g_cgv.myPCIdxOnServer &&
+		character->entityType == ENTITY_PC )
+	{
+		g_cgv.resendTargeting = false;
+//		g_cgv.attackSuccess = 0;
+		g_cursor->QuitPlayerTargetedMove();
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		if( g_musicMng->IsPlaying( g_soundMng->GetNormalSoundID( GTH_SOUND_ID_PC_HEARTBEAT_0 ) ) ) g_musicMng->Stop( GTH_SOUND_ID_PC_HEARTBEAT_0 );
+	}
+
+	if (character->ani_curSetID == ANIM_ITEM_DYING_0 || character->ani_curSetID == ANIM_ITEM_DEAD_0)
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_DEAD_0);
+	else
+	if (character->ani_curSetID != ANIM_ITEM_DYING_0 )
+	{
+		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_DYING_0, NULL, NULL, true);
+	}
+}
+
+void GTH_Character_Respawn(Fx_CHARACTER_t *character)
+{
+	vec3_t delta;
+
+	VectorClear(delta);
+	g_move->Pmove( character->position , delta , character->angles );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE, NULL, NULL, true );
+
+	// 임시, Respawn effect
+	if(	!GTH_IsGameMaster ( character )	)
+	{
+		/* 2003-10-17 : 수정 */ 
+		g_effectMng ->Add ( GTH_EFFECT_CLASS_MODEL , 7 , character->position , NULL, character ->angles , 0.0f, character ->entityType, character ->idxOnServer );
+	}
+	
+	character->event = GTH_EV_CHAR_IDLE;
+
+	// 자기 자신일 경우 이동을 중지함
+	if( character->idxOnServer == g_cgv.myPCIdxOnServer && character->entityType == ENTITY_PC ) 
+	{
+		// init affect
+//		g_ifMng->m_nameWin->AffectProcess( 0, NULL );
+
+		g_cursor->QuitPlayerTargetedMove();
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		GTH_EnableMove();
+	}
+}
+
+void GTH_Character_MouseLeft(Fx_CHARACTER_t *character)
+{
+	vec3_t rotate;
+
+	VectorClear( rotate );
+	rotate[ YAW ] = (float) TURN_SCALE * 3 * g_timer.GetElapsedTime();
+
+	if ( rotate[YAW] > abs(character->mouseAngle - character->angles[YAW]) )
+		character->angles[YAW] = character->mouseAngle;
+	else
+		VectorAdd( character->angles , character->angles , rotate );
+
+	if ( character->angles[ YAW ] >= 360 ) character->angles[ YAW ] -= 360.0f;
+
+	character->SetupVectors();
+}
+
+void GTH_Character_MouseRight(Fx_CHARACTER_t *character)
+{
+	vec3_t rotate;
+
+	VectorClear( rotate );
+	rotate[ YAW ] = (float) TURN_SCALE * 3 * g_timer.GetElapsedTime();
+
+	if ( rotate[YAW] > abs(character->mouseAngle - character->angles[YAW]) )
+		character->angles[YAW] = character->mouseAngle;
+	else
+	{
+		rotate[ YAW ] = - rotate[ YAW ];
+		VectorAdd( character->angles , character->angles , rotate );
+	}
+
+	if ( character->angles[ YAW ] < 0 ) character->angles[ YAW ] += 360.0f;
+
+	character->SetupVectors();
+}
+
+void GTH_Character_MouseWalk(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+	vec3_t dir;
+
+	float distance;
+
+	VectorClear( dir );
+	dir[YAW] = character->mouseAngle;
+
+	AngleToVector( dir , delta );
+
+	speed = SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	distance = GTH_GetDistance2D(character->mousePos, character->position);
+	if ( speed + 2.0f >= distance) 
+	{
+		speed = 0;
+		VectorScale( delta , delta , speed );
+		character->position[0] = character->mousePos[0];
+		character->position[1] = character->mousePos[1];
+
+		VectorCopy( position , character->position );
+		g_move->Pmove( position , delta , dir );
+		VectorCopy( character->position , position );
+
+		// change sync position
+		VectorCopy( character->syncPosition , character->position );
+
+		if( !( g_cgv.clickEvent == GTH_CEV_CHAR_IDLE || g_cgv.clickEvent == GTH_CEV_CHAR_NONE ) ) return;
+
+		character->oldEvent = character->event;
+		character->event = GTH_EV_CHAR_IDLE;
+	}
+	else
+	{
+		VectorScale( delta , delta , speed );
+		VectorCopy( position , character->position );
+		g_move->Pmove( position , delta , dir );
+		VectorCopy( character->position , position );
+	
+		// change sync position
+		VectorCopy( position , character->syncPosition );
+		g_move->Pmove( position , delta , dir);
+		VectorCopy( character->syncPosition , position );
+	}
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK);
+}
+
+void GTH_Character_MouseRun(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+	vec3_t dir;
+
+	float distance;
+
+	VectorClear( dir );
+	dir[YAW] = character->mouseAngle;
+
+	AngleToVector( dir , delta );
+
+	speed = RUN_SCALE * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	distance = GTH_GetDistance2D(character->mousePos, character->position);
+	if (speed + 4.0f >= distance) 
+	{
+		speed = 0;
+		VectorScale( delta , delta , speed );
+		character->position[0] = character->mousePos[0];
+		character->position[1] = character->mousePos[1];
+
+		VectorCopy( position , character->position );
+		g_move->Pmove( position , delta , dir );
+		VectorCopy( character->position , position );
+
+		// change sync position
+		VectorCopy( character->syncPosition , character->position );
+
+		if( !( g_cgv.clickEvent == GTH_CEV_CHAR_IDLE || g_cgv.clickEvent == GTH_CEV_CHAR_NONE ) ) return;
+
+		character->oldEvent = character->event;
+		character->event = GTH_EV_CHAR_IDLE;
+	}
+	else
+	{
+		VectorScale( delta , delta , speed );
+		VectorCopy( position , character->position );
+		g_move->Pmove( position , delta , dir );
+		VectorCopy( character->position , position );
+
+		// change sync position
+		VectorCopy( position , character->syncPosition );
+		g_move->Pmove( position , delta , dir );
+		VectorCopy( character->syncPosition , position );
+	}
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_RUN);
+}
+//왕귀인
+void GTH_Character_PcStun( Fx_CHARACTER_t *character )
+{
+	if (character->ani_curSetID == ANIM_ITEM_ATTACKED_0 ) 
+	{
+		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		return;
+	}
+
+	if( character->flag_replayAnim == 1 )
+	{
+		character->flag_replayAnim = 0;
+
+		float delay = (float)character->stat_recoveryTime;
+		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_ATTACKED_0, true, &delay, true );
+		
+		// 자기 자신일 경우 이동을 중지함
+		if( character->idxOnServer == g_cgv.myPCIdxOnServer && character->entityType == ENTITY_PC ) 
+		{
+			g_cursor->QuitPlayerTargetedMove();
+			g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		}
+	}
+}
+
+void GTH_Character_Stun( Fx_CHARACTER_t *character )
+{
+	if (character->ani_curSetID == ANIM_ITEM_ATTACKED_0 ) 
+	{
+		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		return;
+	}
+
+	if( character->flag_replayAnim == 1 )
+	{
+		character->flag_replayAnim = 0;
+//		float delay = (float)character->stat_recoveryTime;
+//		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_ATTACKED_0, true, &delay, true );
+		// 2004-04-15 18:18, Jongnam
+		// 공격속도 
+		GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_ATTACKED_0, true, NULL, true );
+		
+		// 자기 자신일 경우 이동을 중지함
+		if( character->idxOnServer == g_cgv.myPCIdxOnServer && character->entityType == ENTITY_PC ) 
+		{
+			g_cursor->QuitPlayerTargetedMove();
+			g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		}
+	}
+}
+void GTH_Character_Sit( Fx_CHARACTER_t* character ,float fSpeed ,bool bNewFlag)
+{
+	if( character->ani_curSetID == ANIM_ITEM_SIT_IDLE ) return;
+
+	if( character->isNewChar && bNewFlag)
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_SIT_IDLE, true, NULL, true );
+		return;
+	}
+	if( character->ani_curSetID == ANIM_ITEM_SIT )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_SIT_IDLE );
+		return;
+	}
+
+	if( character->idxOnServer == g_cgv.myPCIdxOnServer &&
+		character->entityType == ENTITY_PC )
+	{
+		g_cgv.resendTargeting = false;
+//		g_cgv.attackSuccess = 0;
+		g_cursor->QuitPlayerTargetedMove();
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+	}
+	float attackSpeed = fSpeed;
+
+	GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_SIT, true, &attackSpeed, true );
+	g_charManager->GenerateOtherCharacter( character->ID );
+}
+void GTH_Character_Stand( Fx_CHARACTER_t* character )
+{
+	if( character->ani_curSetID == ANIM_ITEM_STAND ) 
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		return;
+	}
+	if( character->ani_curSetID == ANIM_ITEM_IDLE )
+	{
+		if( character->idxOnServer == g_cgv.myPCIdxOnServer &&
+			character->entityType == ENTITY_PC )
+		{
+			g_cgv.resendTargeting = false;
+//			g_cgv.attackSuccess = 0;
+			g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+			character->event = GTH_EV_CHAR_IDLE;
+			GTH_EnableMove();
+		}
+		return;
+	}
+	float attackSpeed = 2000.0f;
+	if( character->ani_curSetID == ANIM_ITEM_SIT_IDLE )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_STAND, false, &attackSpeed );
+		g_charManager->GenerateOtherCharacter( character->ID );
+	}
+}
+
+
+
+
+/*===========================================================================
+    Func : GTH_Character_Shout()
+    1. (vemer 2004-06-17 11:32)
+	2. 손 흔드는 동작.
+===========================================================================*/
+void GTH_Character_Shout( Fx_CHARACTER_t* character )
+{
+	if( character->ani_curSetID == ANIM_ITEM_SOCIAL_SHOUT )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		GTH_EnableMove();
+		return;
+	}
+
+	float attackSpeed = 2000.0f;
+	if( character->ani_curSetID == ANIM_ITEM_IDLE )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_SOCIAL_SHOUT, false, &attackSpeed );
+		g_charManager->GenerateOtherCharacter( character->ID );
+
+		g_cgv.resendTargeting = false;
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		character->event = GTH_EV_CHAR_IDLE;
+		// 2004-09-08 11:44, elfshadow begin 주석처리
+		//GTH_DisableMove();
+		// 2004-09-08 11:44, elfshadow end	
+	}
+}
+
+/*===========================================================================
+    Func : GTH_Character_Bow()
+    1. (vemer 2004-06-17 11:32)
+	2. 손 흔드는 동작.
+===========================================================================*/
+void GTH_Character_Bow( Fx_CHARACTER_t* character )
+{
+	if( character->ani_curSetID == ANIM_ITEM_SOCIAL_BOW ) 
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_IDLE );
+		GTH_EnableMove();
+		return;
+	}
+
+	float attackSpeed = 2000.0f;
+	if( character->ani_curSetID == ANIM_ITEM_IDLE )
+	{
+		GTH_ChangeAnimation( character, ANIMTYPE_BYITEM, ANIM_ITEM_SOCIAL_BOW, false, &attackSpeed );
+		g_charManager->GenerateOtherCharacter( character->ID );
+
+		
+		g_cgv.resendTargeting = false;		
+		
+		g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		character->event = GTH_EV_CHAR_IDLE;
+		// 2004-09-08 11:44, elfshadow begin 주석처리
+		//GTH_DisableMove();
+		// 2004-09-08 11:44, elfshadow end		
+	}
+}
+
+
+
+float GTH_GetDistance(vec3_t s, vec3_t t)
+{
+	return sqrt( (t[0]-s[0])*(t[0]-s[0]) + (t[1]-s[1])*(t[1]-s[1]) + (t[2]-s[2])*(t[2]-s[2]) );
+}
+
+float GTH_GetDistance2D(vec3_t s, vec3_t t)
+{
+	return sqrt( (t[0]-s[0])*(t[0]-s[0]) + (t[1]-s[1])*(t[1]-s[1]) );
+}
+
+void GTH_SetWorldInfo()
+{
+	int worldIdx;
+#ifdef _GTH_ONLINE_VERSION
+	worldIdx = g_cgv.syncCharacter[0].worldIdx;
+		
+	if ( worldIdx >= g_cgv.worldTableNumber )
+	{
+		// "오류", "월드테이블의 월드 cfg 파일 불일치합니다."
+		g_ifMng->SetMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,46), g_LPACK.GetMassage(LPACK_TYPE_NORMAL,160), 1, IF_MESSAGE_EXIT_CLIENT );
+		return;
+	}
+	strcpy ( g_cgv.worldInfo, g_cgv.worldTable[worldIdx].cfgFile );
+	g_cgv.currentWorldIdx = worldIdx;
+
+#else
+	if( !g_cgv.offLineStartFlag  )
+	{
+		memcpy( &g_cgv.syncCharacter[0], &g_cgv.syncCharacter[g_cgv.selectedGameDataIdx], sizeof( syncCharacter_t ) );
+		g_cgv.offLineStartFlag = true;
+		VectorCopy( g_cgv.syncCharacter[0].position, g_cgv.worldTable[g_cgv.syncCharacter[0].worldIdx].startPos );
+	}
+	else
+	{
+		// offline 용, synccharacter에 mycharacter를 저장
+		g_cgv.syncCharacter[0].equipNumber = 0;
+		for( int i = 0; i < EQUIP_RING; i ++ )
+		{
+			if( g_cgv.myCharacterInfo->equipment[i]	== -1 ) continue;
+			g_cgv.syncCharacter[0].equipment[g_cgv.syncCharacter[0].equipNumber] = 
+				g_cgv.myCharacterInfo->item[g_cgv.myCharacterInfo->equipment[i]].itemTableIdx;
+				
+			g_cgv.syncCharacter[0].equipNumber ++;
+		}
+	}
+
+	worldIdx = g_cgv.syncCharacter[0].worldIdx;
+	if ( worldIdx >= g_cgv.worldTableNumber )
+	{
+		// "오류", "월드테이블의 월드 cfg 파일 불일치합니다."
+		g_ifMng->SetMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,46), g_LPACK.GetMassage(LPACK_TYPE_NORMAL,114), 1, IF_MESSAGE_EXIT_CLIENT );
+		return;
+	}
+	strcpy ( g_cgv.worldInfo, g_cgv.worldTable[worldIdx].cfgFile );
+#endif
+	// loading->game
+	g_ifMng->m_changeStateFlag = true;
+}
+
+void GTH_RequestChangeWorld( int targetWorldIdx, int targetGateIdx )
+{
+	if ( g_pApp->m_myCharacter->worldIdx == targetWorldIdx )
+	{
+		// "선택한 월드로 이동할 수 없습니다."
+		g_ifMng->AddSysMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,115), D3DCOLOR_ARGB(255, 255, 55, 55) );
+		return;
+	}
+
+
+
+	
+#ifdef _GTH_ONLINE_VERSION
+
+	struct tagTransportWorldMarking{
+		int targetWorldIdx;
+		int targetGateIdx;	
+		vec3_t position;
+		int    timer;
+	};
+	static struct tagTransportWorldMarking TrWorldMark={-1,-1,0,};
+
+	if((TrWorldMark.targetWorldIdx == targetWorldIdx) &&
+		(TrWorldMark.targetGateIdx == targetGateIdx)){
+
+		if(1 == VectorCompare(g_cgv.syncCharacter[0].position,TrWorldMark.position)) return;
+		if((timeGetTime() - TrWorldMark.timer) < 10 * 1000) return;
+	}		
+
+	TrWorldMark.targetWorldIdx = targetWorldIdx;
+	TrWorldMark.targetGateIdx = targetGateIdx;	
+	TrWorldMark.timer = timeGetTime();
+	VectorCopy(TrWorldMark.position,g_cgv.syncCharacter[0].position);
+	
+
+	GTH_SendMessage_TransportWorld( targetWorldIdx, targetGateIdx ); 
+
+#else
+	g_cgv.syncCharacter[0].worldIdx = targetWorldIdx;
+	VectorCopy(g_cgv.syncCharacter[0].position, g_cgv.worldTable[targetWorldIdx].spawnPos[targetGateIdx]);
+	VectorSet(g_cgv.syncCharacter[0].angles, 0, g_cgv.worldTable[targetWorldIdx].spawnYaw[targetGateIdx], 0);
+	
+	GTH_PrepareChangeWorld();
+#endif
+}
+
+void GTH_PrepareChangeWorld()
+{
+	g_cgv.changeServerFlag = 0;
+	// game->loading
+	g_ifMng->m_changeStateFlag = true;
+	g_cgv.restartState = RESTART_NONE;
+
+	// [LOCK_ITEM] elfshadow 2005-05-23 13:56 begin
+	g_ifMng->m_itemWin->ClearLockItems();
+
+	// [NEW단전] elfshadow 2005-08-25 11:8 begin
+	g_NewDanBattleSystem.InitDanBattleInfo();
+	g_ifMng->m_DanWarBattleWin->Enable(FALSE);
+}
+
+//내계정 캐릭 생성
+void GTH_GenerateMyCharacter()
+{
+	int i, j;
+	int itemIdx;
+//	char* token;
+
+	memset( g_cgv.syncCharacter, 0, sizeof( g_cgv.syncCharacter ) );
+
+#ifndef	_GTH_ONLINE_VERSION
+	g_script.Load( "offline.cfg" );
+	g_script.BeginParse();
+
+	token = g_script.GetNextToken( true );
+	if( !stricmp( token, "CHARACTER_NUMBER" ) )
+	{
+		token = g_script.GetNextToken( true );
+		g_cgv.savedDataNumber = atoi( token );
+	}
+	curIdx = -1;
+	
+	GTH_InitSavedData();
+
+	while( 1 )
+	{
+		token = g_script.GetNextToken( true );
+		if( !token[0] ) break;
+		if( !stricmp( token, "CLASS" ) )
+		{
+			curIdx ++;
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].pcClass = atoi( token );
+			g_cgv.savedData[curIdx].characterID = curIdx;
+		} else if( !stricmp( token, "SKINPART" ) )
+		{
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].skinPart[0] = atoi( token );
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].skinPart[1] = atoi( token );
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].skinPart[2] = atoi( token );
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].skinPart[3] = atoi( token );
+		} else if( !stricmp( token, "ITEMNUMBER" ) )
+		{
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].itemNumber = atoi( token );
+
+			// skip ITEMTABLEINDEX
+			token = g_script.GetNextToken( true );
+			for( i = 0; i < g_cgv.savedData[curIdx].itemNumber; i ++ )
+			{
+				token = g_script.GetNextToken( true );
+				g_cgv.savedData[curIdx].item[i].itemTableIdx = atoi( token );
+				g_cgv.savedData[curIdx].item[i].durability = 100;
+			}
+		} else if( !stricmp( token, "INVENTORY" ) )
+		{
+			token = g_script.GetNextToken( true );
+			itemPos = atoi( token );
+			token = g_script.GetNextToken( true );
+			itemIdx = atoi( token );
+			g_cgv.savedData[curIdx].inventory[itemPos] = itemIdx;
+		} else if( !stricmp( token, "NAME" ) )
+		{
+			token = g_script.GetNextToken( true );
+			strcpy( g_cgv.savedData[curIdx].name, token );
+		} else if( !stricmp( token, "WORLDIDX" ) )
+		{
+			token = g_script.GetNextToken( true );
+			g_cgv.savedData[curIdx].worldIdx = atoi( token );
+		}
+		g_cgv.savedData[curIdx].selectedGen = 0;
+		g_cgv.savedData[curIdx].genLevel = 1;
+		g_cgv.savedData[curIdx].genExp = 100;
+		g_cgv.savedData[curIdx].exp = 100;
+		g_cgv.savedData[curIdx].level = 22;
+		g_cgv.savedData[curIdx].curRA = 100;
+		g_cgv.savedData[curIdx].force = 50;
+		g_cgv.savedData[curIdx].soulpower = 50;
+		g_cgv.savedData[curIdx].agility = 50;
+		g_cgv.savedData[curIdx].vitality = 50;
+
+		for (j=0; j<MAX_NUMBER_OF_HOTKEY; j++)
+		{
+			g_cgv.savedData[curIdx].hotkeyType[j] = 0;
+			g_cgv.savedData[curIdx].hotkeyIdx[j] = -1;
+		}
+		g_cgv.savedData[curIdx].questPoint = 0;
+		g_cgv.savedData[curIdx].questNumber = 0;
+		
+		for (j=0; j<MAX_COUNT_QUEST_VARIABLE; j++)
+			g_cgv.savedData[curIdx].questVar[j].iVar = 65280;
+		
+		for (j=0; j<MAX_COUNT_QUEST_INVENTORY; j++)
+			g_cgv.savedData[curIdx].questInventory[j].iItem = 65535;
+		
+		for( j = 0; j < MAX_COUNT_QUEST_STATUS; j ++ )
+		{
+			memset( &g_cgv.savedData[curIdx].questStatus[j], 0, sizeof( questStatus_t ) );
+			g_cgv.savedData[curIdx].questStatus[j].questIdx = -1;
+		}
+	}
+
+#endif
+
+	//11
+	//g_cgv.syncCharacterNumber = 3;  	
+	
+	// 원본 소스		
+//	for( i = 0; i < g_cgv.syncCharacterNumber; i ++ )
+//	{
+//		if( g_cgv.savedData[i].characterID == -1 )
+//		{
+//			g_cgv.syncCharacter[i].entityType = ENTITY_NPC;
+//			// npc mol
+//			g_cgv.syncCharacter[i].tableIdx = 11;
+//			g_cgv.syncCharacter[i].aliveState = MON_ALIVE_STATE_NORMAL;
+//		}
+//		else
+//		{
+//			g_cgv.syncCharacter[i].entityType = ENTITY_PC;
+//			g_cgv.syncCharacter[i].tableIdx = g_cgv.savedData[i].pcClass;
+//			g_cgv.syncCharacter[i].skinPart[0] = g_cgv.savedData[i].skinPart[0];
+//			g_cgv.syncCharacter[i].skinPart[1] = g_cgv.savedData[i].skinPart[1];
+//			g_cgv.syncCharacter[i].skinPart[2] = g_cgv.savedData[i].skinPart[2];
+//			g_cgv.syncCharacter[i].skinPart[3] = g_cgv.savedData[i].skinPart[3];
+//			
+//			g_cgv.syncCharacter[i].curRA = g_cgv.savedData[i].curRA;
+//			g_cgv.syncCharacter[i].curSA = g_cgv.savedData[i].curSA;
+//			g_cgv.syncCharacter[i].speed = 3;
+//			g_cgv.syncCharacter[i].event = GTH_EV_CHAR_IDLE;
+//			
+//			strcpy( g_cgv.syncCharacter[i].name, g_cgv.savedData[i].name );
+//
+//			// 캐랙터 선택화면에서는 전부 착용하고 있음
+//			g_cgv.savedData[i].calForce = 512;
+//			g_cgv.savedData[i].calSoulpower = 512;
+//			g_cgv.savedData[i].calAgility = 512;
+//			g_cgv.savedData[i].calVitality = 512;
+//
+//			// 아이템 착용
+//			g_cgv.syncCharacter[i].equipNumber = 0;
+//			for( j = 0; j < EQUIP_RING; j ++ )
+//			{
+//				if( g_cgv.savedData[i].equipment[j]	== -1 ) continue;
+//				if( j == EQUIP_WEAPON_1 && g_cgv.savedData[i].curWeapon == 1 ) continue;
+//				if( j == EQUIP_WEAPON_2 && g_cgv.savedData[i].curWeapon == 0 ) continue;
+//				itemIdx = g_cgv.savedData[i].equipment[j];
+//				if( !GTH_CheckRequire( &g_cgv.savedData[i], 0, &g_cgv.savedData[i].item[itemIdx] ) ) continue;
+//
+//				g_cgv.syncCharacter[i].equipment[g_cgv.syncCharacter[i].equipNumber] = 
+//					g_cgv.savedData[i].item[g_cgv.savedData[i].equipment[j]].itemTableIdx;
+//				
+//				g_cgv.syncCharacter[i].equipNumber ++;
+//			}
+//			// max ra, max sa를 계산을 통해 얻어와야 한다
+//			// 임시
+//			g_cgv.syncCharacter[i].calMaxRA = 100;
+//			g_cgv.syncCharacter[i].calMaxSA = 100;
+//		}
+//				
+//		g_cgv.syncCharacter[i].worldIdx = g_cgv.savedData[i].worldIdx;
+//		g_cgv.syncCharacter[i].idxOnServer = i;
+//		
+//		if( i == 0 )
+//		{
+//			g_cgv.syncCharacter[i].position[0]	= -85.0f;
+//			g_cgv.syncCharacter[i].position[1]	= -174.0f;
+//			g_cgv.syncCharacter[i].position[2]	= -904.0f;
+//			g_cgv.syncCharacter[i].angles [0]	= 0.0f;
+//			g_cgv.syncCharacter[i].angles [1]	= 285.0f;
+//			g_cgv.syncCharacter[i].angles [2]	= 0.0f;
+//		}
+//		if( i == 1 )
+//		{
+//			g_cgv.syncCharacter[i].position[0]	= 0.0f;
+//			g_cgv.syncCharacter[i].position[1]	= -100.0f;
+//			g_cgv.syncCharacter[i].position[2]	= -904.0f;
+//			g_cgv.syncCharacter[i].angles [0]	= 0.0f;
+//			g_cgv.syncCharacter[i].angles [1]	= 270.0f;
+//			g_cgv.syncCharacter[i].angles [2]	= 0.0f;
+//		}
+//		if( i == 2 )
+//		{
+//			g_cgv.syncCharacter[i].position[0]	= 85.0f;
+//			g_cgv.syncCharacter[i].position[1]	= -174.0f;
+//			g_cgv.syncCharacter[i].position[2]	= -904.0f;
+//			g_cgv.syncCharacter[i].angles [0]	= 0.0f;
+//			g_cgv.syncCharacter[i].angles [1]	= 255.0f;
+//			g_cgv.syncCharacter[i].angles [2]	= 0.0f;
+//		}
+//		g_cgv.syncCharacter[i].generalSpeed = 100;
+//	}
+//	// beta version character number is 4
+//	int numGen = 4;
+//	for( i = 3; i < numGen + 3; i ++ )
+//	{
+//		g_cgv.syncCharacter[i].entityType = ENTITY_PC;
+//		
+//		g_cgv.syncCharacter[i].skinPart[0] = 0;
+//		g_cgv.syncCharacter[i].skinPart[1] = 0;
+//		g_cgv.syncCharacter[i].skinPart[2] = 0;
+//		g_cgv.syncCharacter[i].skinPart[3] = 0;
+//		
+//		g_cgv.syncCharacter[i].curRA		= 0;
+//		g_cgv.syncCharacter[i].curSA		= 0;
+//		g_cgv.syncCharacter[i].calMaxRA		= 0;
+//		g_cgv.syncCharacter[i].calMaxSA		= 0;
+//		
+//		
+//		g_cgv.syncCharacter[i].speed = 3;
+//		g_cgv.syncCharacter[i].event = GTH_EV_CHAR_IDLE;
+//		
+//		strcpy( g_cgv.syncCharacter[i].name, "" );
+//		
+//		g_cgv.syncCharacter[i].equipNumber = 0;	
+//		g_cgv.syncCharacter[i].worldIdx = 3;
+//
+//
+//
+//		// mentality
+//		if( i == 3 )
+//		{
+//			g_cgv.syncCharacter[i].tableIdx = 0;
+//
+//			g_cgv.syncCharacter[i].position[0] = 140.0f;
+//			g_cgv.syncCharacter[i].position[1] = 788.0f;
+//			g_cgv.syncCharacter[i].position[2] = -850.0f;
+//			g_cgv.syncCharacter[i].angles [0] = -4.0f;
+//			g_cgv.syncCharacter[i].angles [1] = 180.0f;
+//			g_cgv.syncCharacter[i].angles [2] = 0.0f;
+//
+////			g_cgv.syncCharacter[i].pcJob = 5;
+////			g_cgv.syncCharacter[i].equipNumber = 6;	
+////			g_cgv.syncCharacter[i].equipment[0] = 649;
+////			g_cgv.syncCharacter[i].equipment[1] = 698;
+////			g_cgv.syncCharacter[i].equipment[2] = 228;
+////			g_cgv.syncCharacter[i].equipment[3] = 230;
+////			g_cgv.syncCharacter[i].equipment[4] = 221;
+////			g_cgv.syncCharacter[i].equipment[5] = 78;
+//
+//		}
+//		// wind
+//		if( i == 4 )
+//		{
+//			g_cgv.syncCharacter[i].tableIdx = 1;
+//
+//			g_cgv.syncCharacter[i].position[0] = -134.0f;
+//			g_cgv.syncCharacter[i].position[1] = 788.0f;
+//			g_cgv.syncCharacter[i].position[2] = -850.0f;
+//			g_cgv.syncCharacter[i].angles [0] = -4.0f;
+//			g_cgv.syncCharacter[i].angles [1] = 0.0f;
+//			g_cgv.syncCharacter[i].angles [2] = 0.0f;
+//
+////			g_cgv.syncCharacter[i].pcJob = 7;
+////			g_cgv.syncCharacter[i].equipNumber = 6;	
+////			g_cgv.syncCharacter[i].equipment[0] = 654;
+////			g_cgv.syncCharacter[i].equipment[1] = 702;
+////			g_cgv.syncCharacter[i].equipment[2] = 579;
+////			g_cgv.syncCharacter[i].equipment[3] = 557;
+////			g_cgv.syncCharacter[i].equipment[4] = 543;
+////			g_cgv.syncCharacter[i].equipment[5] = 383;
+//		}
+//		// water
+//		if( i == 5 )
+//		{
+//			g_cgv.syncCharacter[i].tableIdx = 2;
+//
+//			g_cgv.syncCharacter[i].position[0] = 140.0f;
+//			g_cgv.syncCharacter[i].position[1] = 588.0f;
+//			g_cgv.syncCharacter[i].position[2] = -850.0f;
+//			g_cgv.syncCharacter[i].angles [0] = -4.0f;
+//			g_cgv.syncCharacter[i].angles [1] = 180.0f;
+//			g_cgv.syncCharacter[i].angles [2] = 0.0f;
+//
+////			// 물	
+////			g_cgv.syncCharacter[i].pcJob = 9;
+////			g_cgv.syncCharacter[i].equipNumber = 6;	
+////			g_cgv.syncCharacter[i].equipment[0] = 586;
+////			g_cgv.syncCharacter[i].equipment[1] = 653;
+////			g_cgv.syncCharacter[i].equipment[2] = 579;
+////			g_cgv.syncCharacter[i].equipment[3] = 557;
+////			g_cgv.syncCharacter[i].equipment[4] = 762;	
+////			g_cgv.syncCharacter[i].equipment[5] = 85;	
+//		}
+//		// earth
+//		if( i == 6 )
+//		{
+//			g_cgv.syncCharacter[i].tableIdx = 3;
+//
+//			g_cgv.syncCharacter[i].position[0] = -134.0f;
+//			g_cgv.syncCharacter[i].position[1] = 588.0f;
+//			g_cgv.syncCharacter[i].position[2] = -850.0f;
+//			g_cgv.syncCharacter[i].angles [0] = -4.0f;
+//			g_cgv.syncCharacter[i].angles [1] = 0.0f;
+//			g_cgv.syncCharacter[i].angles [2] = 0.0f;
+//
+////			// 흙 	
+////			g_cgv.syncCharacter[i].pcJob = 12;
+////			g_cgv.syncCharacter[i].equipNumber = 6;	
+////			g_cgv.syncCharacter[i].equipment[0] = 803;
+////			g_cgv.syncCharacter[i].equipment[1] = 115;
+////			g_cgv.syncCharacter[i].equipment[2] = 24;
+////			g_cgv.syncCharacter[i].equipment[3] = 21;
+////			g_cgv.syncCharacter[i].equipment[4] = 773;	
+////			g_cgv.syncCharacter[i].equipment[5] = 60;
+//		}
+//
+//		g_cgv.syncCharacter[i].idxOnServer = i;
+//		g_cgv.syncCharacter[i].generalSpeed = 100;
+//
+//		g_cgv.syncCharacterNumber ++;
+//	}
+
+	
+	// [스토리지확장] elfshadow 2005-07-14 13:58 begin
+
+	int SaveDataIdx = 0;
+	if (g_cgv.characterSlotMode == globalVariable_t::CharacterSlotMode::BACK)
+		SaveDataIdx = 3;
+	
+	g_cgv.syncCharacterNumber = 3;
+
+	for( int SyncCharacterIdx= 0; SyncCharacterIdx < g_cgv.syncCharacterNumber; SyncCharacterIdx ++ , SaveDataIdx++)
+	{
+		if( g_cgv.savedData[SaveDataIdx].characterID == -1 )
+		{
+			g_cgv.syncCharacter[SyncCharacterIdx].entityType = ENTITY_NPC;
+			// npc mol
+			g_cgv.syncCharacter[SyncCharacterIdx].tableIdx = 11;
+			g_cgv.syncCharacter[SyncCharacterIdx].aliveState = MON_ALIVE_STATE_NORMAL;
+		}
+		else
+		{
+			g_cgv.syncCharacter[SyncCharacterIdx].entityType = ENTITY_PC;
+			g_cgv.syncCharacter[SyncCharacterIdx].tableIdx = g_cgv.savedData[SaveDataIdx].pcClass;
+			g_cgv.syncCharacter[SyncCharacterIdx].skinPart[0] = g_cgv.savedData[SaveDataIdx].skinPart[0];
+			g_cgv.syncCharacter[SyncCharacterIdx].skinPart[1] = g_cgv.savedData[SaveDataIdx].skinPart[1];
+			g_cgv.syncCharacter[SyncCharacterIdx].skinPart[2] = g_cgv.savedData[SaveDataIdx].skinPart[2];
+			g_cgv.syncCharacter[SyncCharacterIdx].skinPart[3] = g_cgv.savedData[SaveDataIdx].skinPart[3];
+			
+			g_cgv.syncCharacter[SyncCharacterIdx].curRA = g_cgv.savedData[SaveDataIdx].curRA;
+			g_cgv.syncCharacter[SyncCharacterIdx].curSA = g_cgv.savedData[SaveDataIdx].curSA;
+			g_cgv.syncCharacter[SyncCharacterIdx].speed = 3;
+			g_cgv.syncCharacter[SyncCharacterIdx].event = GTH_EV_CHAR_IDLE;
+			
+			strcpy( g_cgv.syncCharacter[SyncCharacterIdx].name, g_cgv.savedData[SaveDataIdx].name );
+
+			// 캐랙터 선택화면에서는 전부 착용하고 있음
+			g_cgv.savedData[SaveDataIdx].calForce = 512;
+			g_cgv.savedData[SaveDataIdx].calSoulpower = 512;
+			g_cgv.savedData[SaveDataIdx].calAgility = 512;
+			g_cgv.savedData[SaveDataIdx].calVitality = 512;
+
+			// 아이템 착용
+			g_cgv.syncCharacter[SyncCharacterIdx].equipNumber = 0;
+			for( j = 0; j < EQUIP_RING; j ++ )
+			{
+				if( g_cgv.savedData[SaveDataIdx].equipment[j]	== -1 ) continue;
+				if( j == EQUIP_WEAPON_1 && g_cgv.savedData[SaveDataIdx].curWeapon == 1 ) continue;
+				if( j == EQUIP_WEAPON_2 && g_cgv.savedData[SaveDataIdx].curWeapon == 0 ) continue;
+				itemIdx = g_cgv.savedData[SaveDataIdx].equipment[j];
+				if( !GTH_CheckRequire( &g_cgv.savedData[SaveDataIdx], 0, &g_cgv.savedData[SaveDataIdx].item[itemIdx] ) ) continue;
+
+				g_cgv.syncCharacter[SyncCharacterIdx].equipment[g_cgv.syncCharacter[SyncCharacterIdx].equipNumber] = 
+					g_cgv.savedData[SaveDataIdx].item[g_cgv.savedData[SaveDataIdx].equipment[j]].itemTableIdx;
+				
+				g_cgv.syncCharacter[SyncCharacterIdx].equipNumber ++;
+			}
+			// max ra, max sa를 계산을 통해 얻어와야 한다
+			// 임시
+			g_cgv.syncCharacter[SyncCharacterIdx].calMaxRA = 100;
+			g_cgv.syncCharacter[SyncCharacterIdx].calMaxSA = 100;
+		}
+				
+		g_cgv.syncCharacter[SyncCharacterIdx].worldIdx = g_cgv.savedData[SaveDataIdx].worldIdx;
+		g_cgv.syncCharacter[SyncCharacterIdx].idxOnServer = SyncCharacterIdx;
+		
+		if( SyncCharacterIdx == 0 )
+		{
+			g_cgv.syncCharacter[SyncCharacterIdx].position[0]	= -85.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[1]	= -174.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[2]	= -904.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [0]	= 0.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [1]	= 285.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [2]	= 0.0f;
+		}
+		if( SyncCharacterIdx == 1 )
+		{
+			g_cgv.syncCharacter[SyncCharacterIdx].position[0]	= 0.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[1]	= -100.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[2]	= -904.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [0]	= 0.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [1]	= 270.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [2]	= 0.0f;
+		}
+		if( SyncCharacterIdx == 2 )
+		{
+			g_cgv.syncCharacter[SyncCharacterIdx].position[0]	= 85.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[1]	= -174.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].position[2]	= -904.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [0]	= 0.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [1]	= 255.0f;
+			g_cgv.syncCharacter[SyncCharacterIdx].angles [2]	= 0.0f;
+		}
+		g_cgv.syncCharacter[SyncCharacterIdx].generalSpeed = 100;
+	}
+
+
+
+
+
+	
+	// 정말 코딩 좇같다..
+	// beta version character number is 4
+	int numGen = 4;
+	for( int SelectCharacterIdx = 3; SelectCharacterIdx < numGen + 3; SelectCharacterIdx ++ )
+	{
+		g_cgv.syncCharacter[SelectCharacterIdx].entityType = ENTITY_PC;
+		
+		g_cgv.syncCharacter[SelectCharacterIdx].skinPart[0] = 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].skinPart[1] = 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].skinPart[2] = 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].skinPart[3] = 0;
+		
+		g_cgv.syncCharacter[SelectCharacterIdx].curRA		= 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].curSA		= 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].calMaxRA		= 0;
+		g_cgv.syncCharacter[SelectCharacterIdx].calMaxSA		= 0;
+		
+		
+		g_cgv.syncCharacter[SelectCharacterIdx].speed = 3;
+		g_cgv.syncCharacter[SelectCharacterIdx].event = GTH_EV_CHAR_IDLE;
+		
+		strcpy( g_cgv.syncCharacter[SelectCharacterIdx].name, "" );
+		
+		g_cgv.syncCharacter[SelectCharacterIdx].equipNumber = 0;	
+		g_cgv.syncCharacter[SelectCharacterIdx].worldIdx = 3;
+
+
+
+		// mentality
+		if( SelectCharacterIdx == 3 )
+		{
+			g_cgv.syncCharacter[SelectCharacterIdx].tableIdx = 0;
+
+			g_cgv.syncCharacter[SelectCharacterIdx].position[0] = 140.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[1] = 788.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[2] = -850.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [0] = -4.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [1] = 180.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [2] = 0.0f;
+
+//			g_cgv.syncCharacter[SelectCharacterIdx].pcJob = 5;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipNumber = 6;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[0] = 649;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[1] = 698;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[2] = 228;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[3] = 230;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[4] = 221;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[5] = 78;
+
+		}
+		// wind
+		if( SelectCharacterIdx == 4 )
+		{
+			g_cgv.syncCharacter[SelectCharacterIdx].tableIdx = 1;
+
+			g_cgv.syncCharacter[SelectCharacterIdx].position[0] = -134.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[1] = 788.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[2] = -850.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [0] = -4.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [1] = 0.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [2] = 0.0f;
+
+//			g_cgv.syncCharacter[SelectCharacterIdx].pcJob = 7;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipNumber = 6;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[0] = 654;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[1] = 702;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[2] = 579;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[3] = 557;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[4] = 543;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[5] = 383;
+		}
+		// water
+		if( SelectCharacterIdx == 5 )
+		{
+			g_cgv.syncCharacter[SelectCharacterIdx].tableIdx = 2;
+
+			g_cgv.syncCharacter[SelectCharacterIdx].position[0] = 140.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[1] = 588.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[2] = -850.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [0] = -4.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [1] = 180.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [2] = 0.0f;
+
+//			// 물	
+//			g_cgv.syncCharacter[SelectCharacterIdx].pcJob = 9;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipNumber = 6;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[0] = 586;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[1] = 653;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[2] = 579;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[3] = 557;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[4] = 762;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[5] = 85;	
+		}
+		// earth
+		if( SelectCharacterIdx == 6 )
+		{
+			g_cgv.syncCharacter[SelectCharacterIdx].tableIdx = 3;
+
+			g_cgv.syncCharacter[SelectCharacterIdx].position[0] = -134.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[1] = 588.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].position[2] = -850.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [0] = -4.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [1] = 0.0f;
+			g_cgv.syncCharacter[SelectCharacterIdx].angles [2] = 0.0f;
+
+//			// 흙 	
+//			g_cgv.syncCharacter[SelectCharacterIdx].pcJob = 12;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipNumber = 6;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[0] = 803;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[1] = 115;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[2] = 24;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[3] = 21;
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[4] = 773;	
+//			g_cgv.syncCharacter[SelectCharacterIdx].equipment[5] = 60;
+		}
+
+		g_cgv.syncCharacter[SelectCharacterIdx].idxOnServer = i;
+		g_cgv.syncCharacter[SelectCharacterIdx].generalSpeed = 100;
+
+		g_cgv.syncCharacterNumber ++;
+	}
+
+
+}
+
+int GTH_Temp_GetTargetMonster()
+{
+	float distance;
+	int i, number;
+	Fx_CHARACTER_t	 *character;
+
+	character = &g_charManager->m_Characters[0];
+	number = g_charManager->m_iNumCharacters;
+
+	for (i=0; i<number; i++, character++)
+	{
+		if ( !character->isAlive ) continue;
+		if (character->entityType != ENTITY_MONSTER) continue;
+
+		distance = GTH_GetDistance(g_pApp->m_myCharacter->position, character->position);
+		if (distance < 200.0f)
+			return character->idxOnServer;
+	}
+
+	return -1;
+}
+
+
+// adjust next angles
+int GTH_AdjustNextAngle( float target, float angle )
+{
+	float td[2];					// for get turn direction
+	// set monster action event
+	if( target != angle )
+	{
+		td[0] = target - angle;
+		if( td[0] < 0 ) td[0] += 360.0f;
+		td[1] = 360.0f - td[0];
+
+		// set left or right turn
+		if( td[0] > td[1] ) 
+		{
+			//if( td[1] < TURN_SCALE * g_timer.GetElapsedTime() ) 
+			if( td[1] == 0 ) 
+			{
+				return( 0 );	// walk
+			}
+			return( 1 ); // right turn
+		}
+		else 
+		{
+//			if( td[0] < TURN_SCALE * g_timer.GetElapsedTime() )
+			if( td[0] == 0 )
+			{
+				return( 0 );	// walk
+			}
+			else return( -1 ); // left turn
+		}
+				
+	}
+	else 
+	{
+		return( 0 );			// walk
+	}
+}
+
+int GTH_AdjustDirection( float target, float angle )
+{
+	float td[2];			// for get turn direction
+	// set monster action event
+	if( target != angle )
+	{
+		td[0] = target - angle;
+		if( td[0] < 0 ) td[0] += 360.0f;
+		td[1] = 360.0f - td[0];
+
+		// set left or right turn
+		if( td[0] > td[1] ) 
+		{
+			if( td[1] == 0 ) 
+			{
+				return( 0 );	// walk
+			}
+			return( 1 ); // right turn
+		}
+		else 
+		{
+			if( td[0] == 0 )
+			{
+				return( 0 );	// walk
+			}
+			else return( -1 ); // left turn
+		}
+				
+	}
+	else 
+	{
+		return( 0 );			// walk
+	}
+}
+
+//void GTH_InitItem( item_t *item )
+//{
+//	memset(item, 0, sizeof(item_t));
+//
+//	item->itemTableIdx = -1;
+//	for (int i=0; i<MAX_NUMBER_OF_ITEM_OPTION; i++)
+//	{
+//		item->optionIdx[i] = -1;
+//	}
+//}
+// [아이템 2차 확장] elfshadow 2005-04-14 10:51 begin
+void GTH_InitItem( item_t *item )
+{
+
+	memset(item, 0, sizeof(item_t));
+
+	item->itemTableIdx = -1;
+	for (int i=0; i<MAX_NUMBER_OF_ITEM_OPTION; i++)
+	{
+		item->optionIdx[i] = -1;
+	}
+	
+	SetItemUseFlag(item, item_t::sItemExtendInfo::enumItemUseFlag::ITEM_USE_FLAG_UN_CHECK);
+	SetItemSpawnType(item, ITEM_SPAWN_INFO::enumItemSpawnType::ITEM_SPAWN_TYPE_UNKNOW);
+	
+	
+}
+
+// 아이템 정보를 삭제한다.
+void GTH_DeleteMyItem( item_t *item )
+{
+	int i;
+
+	memset(item, 0, sizeof(item_t));
+
+	item->itemTableIdx = -1;
+	for (i=0; i<MAX_NUMBER_OF_ITEM_OPTION; i++)
+	{
+		item->optionIdx[i] = -1;
+	}
+	g_cgv.myCharacterInfo->itemNumber --;
+
+}
+
+// 아이템 정보를 추가한다.
+int GTH_AddMyItem( int itemIdx, item_t *item )
+{
+	if (itemIdx >= MAX_NUMBER_OF_OWNITEM)
+	{		
+		// "오류", "치명적 논리 에러: 아이템 데이터가 서버와 불일치 합니다(1)."
+		g_ifMng->SetMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,46), g_LPACK.GetMassage(LPACK_TYPE_NORMAL,157), 1, IF_MESSAGE_NONE );
+		return 0;
+	}
+
+	if ( g_cgv.myCharacterInfo->item[itemIdx].itemTableIdx != -1)
+	{
+		// "오류", "치명적 논리 에러: 아이템 데이터가 서버와 불일치 합니다(2)."
+		g_ifMng->SetMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,46), g_LPACK.GetMassage(LPACK_TYPE_NORMAL,158), 1, IF_MESSAGE_NONE );
+		return 0;
+	}
+
+	memcpy(&g_cgv.myCharacterInfo->item[itemIdx], item, sizeof(item_t));
+	g_cgv.myCharacterInfo->itemNumber ++;
+	
+	return 1;
+}
+
+// 아이템 정보를 추가한다.
+int GTH_AddMyItem( item_t *item )
+{
+	int i;
+
+	for (i=0; i<MAX_NUMBER_OF_OWNITEM; i++)
+	{
+		if ( g_cgv.myCharacterInfo->item[i].itemTableIdx == -1 ) break;
+	}
+	
+	if (i >= MAX_NUMBER_OF_OWNITEM)
+		return -1;
+
+	memcpy(&g_cgv.myCharacterInfo->item[i], item, sizeof(item_t));
+
+	g_cgv.myCharacterInfo->itemNumber++;
+
+	return i;
+}
+
+int GTH_StackMyItem( item_t *item )
+{
+	int i;
+	int itemIdx;
+
+	// stack check
+	if( GTH_IsStackItem( item ) )
+	{
+		for( i = 0; i < MAX_INVENTORY_SIZE; i ++ )
+		{
+			if( g_cgv.myCharacterInfo->inventory[i] < 0 ) continue;
+			itemIdx = g_cgv.myCharacterInfo->inventory[i];
+
+			if( GTH_CheckStackItem( item, &g_cgv.myCharacterInfo->item[itemIdx] ) )
+			{
+				return( itemIdx );
+			}
+		}
+	}
+	return( -1 );
+}
+
+int GTH_FindEmptyInventoryPos()
+{
+	int i;
+
+	for( i = 0; i < MAX_INVENTORY_SIZE; i ++ )
+	{
+		if( g_cgv.myCharacterInfo->inventory[i] == -1 )
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+// 2003-11-14 : 종남
+int GTH_StackMyItemForDepot( item_t *item )
+{
+	int i;
+	int itemIdx;
+
+	// stack check
+	if( GTH_IsStackItem( item ) )
+	{
+		for( i = 0; i < MAX_DEPOT_SIZE; i ++ )
+		{
+			if( g_cgv.myCharacterInfo->depot[i] < 0 ) continue;
+			itemIdx = g_cgv.myCharacterInfo->depot[i];
+
+			if( GTH_CheckStackItem( item, &g_cgv.myCharacterInfo->item[itemIdx] ) )
+			{
+				return( itemIdx );
+			}
+		}
+	}
+	return( -1 );
+}
+
+// 2003-11-14 : 종남
+int GTH_FindEmptyDepotPos()
+{
+	int i;
+
+	for( i = 0; i < MAX_DEPOT_SIZE; i ++ )
+	{
+		if( g_cgv.myCharacterInfo->depot[i] == -1 )
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+int GTH_MyCharacter_CheckCollision()
+{
+	vec3_t position, delta, dir;
+	float speed;
+	int flag;
+
+	switch ( g_pApp->m_myCharacter->event )
+	{
+	case GTH_EV_CHAR_WALK : 	
+	case GTH_EV_CHAR_MOUSEWALK :
+	case GTH_EV_CHAR_WALKRIGHT :
+	case GTH_EV_CHAR_WALKLEFT :
+		speed = SPEED_CONSTANT * g_pApp->m_myCharacter->moveSpeed * g_timer.GetElapsedTime();
+		break;
+
+	case GTH_EV_CHAR_BACK :
+	case GTH_EV_CHAR_BACKRIGHT :
+	case GTH_EV_CHAR_BACKLEFT :
+		speed = -1 * BACK_SCALE * SPEED_CONSTANT * g_pApp->m_myCharacter->moveSpeed * g_timer.GetElapsedTime();
+		break;
+
+	case GTH_EV_CHAR_RUN :
+	case GTH_EV_CHAR_MOUSERUN :
+	case GTH_EV_CHAR_RUNLEFT :
+	case GTH_EV_CHAR_RUNRIGHT :
+		speed = RUN_SCALE * SPEED_CONSTANT * g_pApp->m_myCharacter->moveSpeed * g_timer.GetElapsedTime();
+		break;
+
+
+	case GTH_EV_CHAR_MOVERIGHT :
+		speed = SPEED_CONSTANT * g_pApp->m_myCharacter->moveSpeed * g_timer.GetElapsedTime();
+		break;
+
+	case GTH_EV_CHAR_MOVELEFT :
+		speed = -1 * SPEED_CONSTANT * g_pApp->m_myCharacter->moveSpeed * g_timer.GetElapsedTime();
+		break;
+
+	case GTH_EV_CHAR_ATTACK :
+		speed = 50;	// 임시처리
+		break;
+
+	default: 
+		return 0;
+	}
+
+	if (g_pApp->m_myCharacter->event == GTH_EV_CHAR_MOUSEWALK || g_pApp->m_myCharacter->event == GTH_EV_CHAR_MOUSERUN)
+	{
+		VectorClear( dir );
+		dir[YAW] = g_pApp->m_myCharacter->mouseAngle;
+		AngleToVector( dir , delta );
+	}
+	else
+	{
+		g_pApp->m_myCharacter->SetupVectors();
+		g_pApp->m_myCharacter->GetFwdVector( delta );
+		delta[2] = 0;
+		VectorNormalize( delta );
+	}
+
+	VectorScale( delta , delta , speed );
+	VectorCopy( position , g_pApp->m_myCharacter->position );
+	flag = g_move->Pmove( position , delta , g_pApp->m_myCharacter->angles );
+
+	// 캐랙터 끼리의 충돌
+//AUTO		if	(	g_charManager ->CharacterCollideCheck ( g_pApp ->m_myCharacter )	)
+//AUTO		{
+//AUTO			vec3_t	displacement;
+//AUTO	
+//AUTO			VectorSubtract ( displacement, g_pApp ->m_myCharacter ->stat_collidedChar ->position, g_pApp ->m_myCharacter ->position );
+//AUTO			if	(	VectorDotProduct ( displacement, delta )	>	0	)
+//AUTO				return	1;
+//AUTO		}
+
+	if ( flag != COLLIDE_STARTSOLID )	// 충돌이 아니면
+		return 0;
+
+	return 1;
+}
+
+void GTH_UpdateSendedZPos()
+{
+	g_cgv.sendedZPos = g_pApp->m_myCharacter->position[2];
+}
+
+int GTH_MyCharacter_UpdatePosition()
+{
+	//관전모드 2005-03-14 leaon begin
+	if(g_pApp->m_myCharacter->m_bObserveMode) return 1;
+	//관전모드 2005-03-14 leaon end 
+		
+	float height;
+
+	height = g_pApp->m_myCharacter->position[2] - g_cgv.sendedZPos;
+
+	if ( abs( height ) < UPDATE_ZPOS_HEIGHT )
+		return 0;
+
+	if( abs( height ) > UPDATE_ZPOS_HEIGHT )
+	{
+		GTH_SendMessage_UpdatePosition();
+	}
+	
+	GTH_UpdateSendedZPos();
+	return 1;
+}
+
+int GTH_WorldToIndex( char *world )
+{
+	int i;
+
+	for (i=0; i<g_cgv.worldTableNumber; i++)
+	{
+		if( stricmp( world , g_cgv.worldTable[i].name ) == 0 )
+			return g_cgv.worldTable[i].idx;
+	}
+	return -1;
+}
+
+int GTH_LoadWorldTable()
+{
+	char *token;
+	int idx, i;
+
+	if( !g_script.Load( "worldtable.cfg" ) )
+		return false;
+
+	g_script.BeginParse();
+
+	g_cgv.worldTableNumber = 0;
+	idx = 0;
+
+	while ( 1 )
+	{
+		token = g_script.GetNextToken( true );
+		if( !token[0] ) break;
+
+		if( !stricmp( token, "WORLD_IDX" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			idx = atoi( token );
+			g_cgv.worldTable[idx].idx = idx;
+			g_cgv.worldTableNumber ++;
+		}
+		else if( !stricmp( token, "HAN_NAME" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			strcpy( g_cgv.worldTable[idx].hanName, token );
+		}
+		else if( !stricmp( token, "NAME" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			strcpy( g_cgv.worldTable[idx].name, token );
+		}
+		else if( !stricmp( token, "CFG_FILE_NAME" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			strcpy( g_cgv.worldTable[idx].cfgFile, token );
+		}
+		else if( !stricmp( token, "START_POSITION" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.worldTable[idx].startPos[0] = atof( token );
+
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.worldTable[idx].startPos[1] = atof( token );
+
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.worldTable[idx].startPos[2] = atof( token );
+		}
+		else if( !stricmp( token, "START_YAW" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.worldTable[idx].startYaw = atof( token );
+		}
+		else if( !stricmp( token, "GATE_NUMBER" ) )
+		{
+			token = g_script.GetNextToken( true );
+			if( !token )  return false;
+			g_cgv.worldTable[idx].gateNumber = atoi( token );
+		}
+		else if( !stricmp( token, "GATE_IDX" ) )
+		{
+			for (i=0; i<g_cgv.worldTable[idx].gateNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].gateIdx[i] = atoi( token );
+			}
+		}
+		else if( !stricmp( token, "SPAWN_POSITION" ) )
+		{
+			for (i=0; i<g_cgv.worldTable[idx].gateNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].spawnPos[i][0] = atof( token );
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].spawnPos[i][1] = atof( token );
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].spawnPos[i][2] = atof( token );
+			}
+		}
+		else if( !stricmp( token, "SPAWN_YAW" ) )
+		{
+			for (i=0; i<g_cgv.worldTable[idx].gateNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].spawnYaw[i] = atof( token );
+			}
+		}
+		else if( !stricmp( token, "LINKED_WORLD_IDX" ) )
+		{
+			for (i=0; i<g_cgv.worldTable[idx].gateNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].linkedWorldIdx[i] = atoi( token );
+			}
+		}
+		else if( !stricmp( token, "LINKED_GATE_IDX" ) )
+		{
+			for (i=0; i<g_cgv.worldTable[idx].gateNumber; i++)
+			{
+				token = g_script.GetNextToken( true );
+				if( !token )  return false;
+				g_cgv.worldTable[idx].linkedGateIdx[i] = atoi( token );
+			}
+		}
+	}
+
+	return true;
+}
+
+void GTH_EpackProcess()
+{
+	// 에너지팩 사용 delay time process
+	g_cgv.epackRADelayTime -= g_timer.GetElapsedMilliTime();
+	if( g_cgv.epackRADelayTime <= 0.0f ) 
+	{
+		g_cgv.epackRADelayTime = 0.0f;
+	}
+	g_cgv.epackSADelayTime -= g_timer.GetElapsedMilliTime();
+
+	if( g_cgv.epackSADelayTime <= 0.0f ) 
+	{
+		g_cgv.epackSADelayTime = 0.0f;
+	}
+}
+
+
+
+// 2003-07-14 : 종남
+void GTH_SetItemObjectModel( int objectType, int itemTableIdx, int &classType, int &mdlID )
+{
+	// temporary
+
+	classType = 0;
+	mdlID = 0;
+	switch( objectType )
+	{
+	case OBJECT_TYPE_ITEM :
+		classType = (GTH_ITEM_CLASS_TYPE)g_itemTable[itemTableIdx].mdlItemType;
+		mdlID = g_itemTable[itemTableIdx].mdlItemID;
+		break;
+	case OBJECT_TYPE_PORTAL :
+		classType = GTH_ITEM_CLASS_ACCESSORY;
+		// 임시, 포탈
+		mdlID = 3;
+		break;
+	}
+	// 2004-01-28 : 종남
+	// 대표아이템이 없을 경우 강제 셋팅(gth_master_box)
+	if( mdlID < 0 || classType < 0 )
+	{
+		classType = 8;
+		mdlID = 2;
+	}
+}
+
+// 2003-07-21 동규
+void GTH_RecoverySafePosition()
+{
+	int worldIdx;
+	vec3_t svrPosition, delta;
+
+	// 높이 값 설정
+	VectorClear( delta );
+	g_move->Pmove( g_pApp->m_myCharacter->position , delta , g_pApp->m_myCharacter->angles );
+
+//	svrPosition[0] = g_pApp->m_myCharacter->position[0] - g_pApp->m_worldBSPs[0]->m_models->bbox[0];
+//	svrPosition[1] = g_pApp->m_myCharacter->position[1] - g_pApp->m_worldBSPs[0]->m_models->bbox[1];
+	svrPosition[2] = g_pApp->m_myCharacter->position[2] - g_pApp->m_worldBSPs[0]->m_models->bbox[2];
+
+	if (svrPosition[2] < 100.0f) 
+	{
+		worldIdx = g_cgv.syncCharacter[0].worldIdx;
+		VectorCopy(g_pApp->m_myCharacter->position, g_cgv.worldTable[worldIdx].startPos);
+		g_pApp->m_myCharacter->angles[1] = g_cgv.worldTable[worldIdx].startYaw;
+
+		GTH_SendMessage_UpdatePosition();
+		GTH_UpdateSendedZPos();
+		//GTH_MyCharacter_UpdatePosition();
+	}
+	else
+	{
+		// "현재 위치는 정상적 위치입니다."
+		g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 448 ), GTHCOLOR_ERRORMESSAGE );
+	}
+}
+
+void GTH_InitPartyInfo()
+{
+	int i;
+	memset( g_cgv.myCharacterInfo->organizerName, 0, sizeof( g_cgv.myCharacterInfo->organizerName ) );
+	g_cgv.myCharacterInfo->organizeServer = -1;
+	g_cgv.myCharacterInfo->organizeTime = 0;
+	g_cgv.myCharacterInfo->isLeader = false;
+	g_cgv.myCharacterInfo->memberNumber = 0;
+	//PartyRandom 2004-10-14,SoonChun.
+	g_cgv.myCharacterInfo->m_bischange  = false;
+	for( i = 0; i < MAX_NUMBER_OF_PARTY_MEMBER; i ++ )
+	{
+		memset( &g_cgv.myCharacterInfo->member[i], 0, sizeof( partyMember_t ) );
+		g_cgv.myCharacterInfo->member[i].serverIndex = -1;
+	}
+	
+	g_cgv.myCharacterInfo->memberNumber = 0;
+}
+
+int GTH_CheckJob( myCharacterInfo_t *pc, int j0, int j1, int j2, int j3 )
+{
+	int reqBeforeAT, req1st, req2nd, req3rd;
+
+	reqBeforeAT = 0;
+	req1st = 0;
+	req2nd = 0;
+	req3rd = 0;
+	
+	switch( pc->pcJob )
+	{
+	case 0 :
+		reqBeforeAT |= AT_MENTALITY;
+		break;
+	case 1 :
+		reqBeforeAT |= AT_WIND;
+		break;
+	case 2 :
+		reqBeforeAT |= AT_WATER;
+		break;
+	case 3:
+		reqBeforeAT |= AT_EARTH;
+		break;
+	case 4 :
+		reqBeforeAT |= AT_MENTALITY;
+		req1st |= AT_DEVOTIONAL_KNIGHT;
+		break;
+	case 5 :
+		reqBeforeAT |= AT_MENTALITY;
+		req1st |= AT_ROMING_KNIGHT;
+		break;
+	case 6 :
+		reqBeforeAT |= AT_WIND;
+		req1st |= AT_PIECING_EYES;
+		break;
+	case 7 :
+		reqBeforeAT |= AT_WIND;
+		req1st |= AT_WINDY_ROMER;
+		break;
+	case 8 :
+		reqBeforeAT |= AT_WATER;
+		req1st |= AT_DESTROYER;
+		break;
+	case 9 :
+		reqBeforeAT |= AT_WATER;
+		req1st |= AT_GUARDIAN;
+		break;
+	case 10 :
+		reqBeforeAT |= AT_WATER;
+		req1st |= AT_PROPHECIER;
+		break;
+	case 11 :
+		reqBeforeAT |= AT_EARTH;
+		req1st |= AT_TRANSFORMER;
+		break;
+	case 12 :
+		reqBeforeAT |= AT_EARTH;
+		req1st |= AT_DEFENDER;
+		break;
+	case 13 :
+		reqBeforeAT |= AT_EARTH;
+		req1st |= AT_STRANGER;
+		break;
+	}
+	if( j0 != 0 )
+	{
+		if( j0 & reqBeforeAT ) return 1;
+	}
+	if( j1 != 0 )
+	{
+		if( j1 & req1st ) return 1;
+	}
+	if( j2 != 0 )
+	{
+		if( j2 & req2nd ) return 1;
+	}
+	if( j3 != 0 )
+	{
+		if( j3 & req3rd ) return 1;
+	}
+	
+	return 0;
+}
+
+int GTH_CheckJob( int job, int reqJob )
+{
+	// before awakening
+	if( reqJob == J_MENTALITY )
+	{
+		if( job == J_MENTALITY || job == J_DEVOTIONAL_KNIGHT || 
+			job == J_ROMING_KNIGHT ) return 1;
+	}
+	if( reqJob == J_WIND )
+	{
+		if( job == J_WIND || job == J_PIECING_EYES ||
+			job == J_WINDY_ROMER ) return 1;
+	}
+	if( reqJob == J_WATER )
+	{
+		if( job == J_WATER || job == J_DESTROYER || 
+			job == J_GUARDIAN || job == J_PROPHECIER ) return 1;
+	}
+	if( reqJob == J_EARTH )
+	{
+		if( job == J_EARTH || job == J_TRANSFORMER || 
+			job == J_DEFENDER || job == J_STRANGER ) return 1;
+	}
+	// 1st awakening(임시)
+	if( reqJob == job ) return 1;
+
+	return 0;
+}
+
+
+int GTH_CheckRequire( myCharacterInfo_t *pc, int requireType, void* pReq )
+{
+	int level, genLevel, force, soul, agi, vit;
+	int notReq;
+
+	level = pc->level;
+	genLevel = pc->genLevel;
+	force = pc->calForce;
+	soul = pc->calSoulpower;
+	agi = pc->calAgility;
+	vit = pc->calVitality;
+
+	switch( requireType )
+	{
+		// item
+	case REQUIRE_TYPE_ITEM :
+		{
+			item_t *item = static_cast<item_t*>(pReq);
+			itemTable_t *pItem;
+			pItem = &g_itemTable[item->itemTableIdx];
+			if( pItem->wearPosition == ITEM_WEAR_POS_NONE ) return 1;
+
+			// 착용제한 검사
+			notReq = false;
+/*
+			for( int i = 0; i < item->optionNumber; i ++ )
+			{
+				if( item->optionIdx[i] == OPTION_INDEX_NONE_REQ )
+				{
+					notReq = true;
+				}
+			}
+*/
+			// job
+			if( !GTH_CheckJob( pc, pItem->reqBeforeAT, pItem->req1stAT, pItem->req2ndAT, pItem->req3rdAT) ) return 0;
+			if( GTH_IsRepairItem( item ) && item->durability <= 0 ) return 0;
+
+			if( !notReq )
+			{
+				if( pItem->reqForce > force ) return 0;
+				if( pItem->reqSoulpower > soul ) return 0;
+				if( pItem->reqAgility > agi ) return 0;
+				if( pItem->reqVitality > vit ) return 0;
+				if( item->reqLevel > level ) return 0;
+			}
+
+			return 1;
+		}
+	case REQUIRE_TYPE_SKILL :
+		{
+			// skillTable_t *pSkill;
+			int skillTableIdx = (* static_cast<int *>(pReq) );
+
+			//스킬 수정 2004-11-15 queen
+			CSkilTable *pSkillTable = g_SkillTableDB.FindDB(skillTableIdx);
+			if(pSkillTable!=NULL) 
+			{
+				// job
+				if( !GTH_CheckJob( pc->pcJob, pSkillTable->m_nJobType) ) return 0;
+				if( genLevel < pSkillTable->GetSkillRequire()->m_nGenLevel ) return 0;
+			}
+
+			//pSkill = &g_skillTable[skillTableIdx];
+			// job
+			//if( !GTH_CheckJob( pc->pcJob, pSkill->jobType ) ) return 0;
+			//if( genLevel < pSkill->reqGenLevel ) return 0;
+
+			return 1;
+		}
+		break;
+	}
+	return 0;
+}
+
+int GTH_GetGenTypeFromJob( int pcJob )
+{	
+	if( pcJob == J_MENTALITY || pcJob == J_DEVOTIONAL_KNIGHT || 
+		pcJob == J_ROMING_KNIGHT ) return( 0 );
+	
+	if( pcJob == J_WIND || pcJob == J_PIECING_EYES || 
+		pcJob == J_WINDY_ROMER ) return( 1 );
+
+	if( pcJob == J_WATER || pcJob == J_DESTROYER || 
+		pcJob == J_GUARDIAN || pcJob == J_PROPHECIER ) return( 2 );
+
+	if( pcJob == J_EARTH || pcJob == J_TRANSFORMER || 
+		pcJob == J_DEFENDER || pcJob == J_STRANGER ) return( 3 );
+
+	return( -1 );
+}
+
+int GTH_GetEquipPos( item_t *item, int equipPos )
+{
+	int itemTableIdx;
+	int tableEquipPos;
+
+	itemTableIdx = item->itemTableIdx;
+	tableEquipPos = g_itemTable[itemTableIdx].wearPosition;
+
+	if( tableEquipPos == ITEM_WEAR_POS_WEAPON )
+	{
+		if( equipPos == EQUIP_WEAPON_1 || equipPos == EQUIP_WEAPON_2 ) return( equipPos );
+		return( EQUIP_WEAPON_1 );
+	}
+	else if( tableEquipPos >= ITEM_WEAR_POS_UPPER && ITEM_WEAR_POS_UPPER <= ITEM_WEAR_POS_EPACK )
+	{
+		return( tableEquipPos + 1 );
+	}
+	else return( -1 );
+}
+
+int GTH_IsRepairItem( item_t *item )
+{
+	int itemTableIdx = item->itemTableIdx;
+	if( !g_itemTable[itemTableIdx].durYn ) return 0;
+	if( !g_itemTable[itemTableIdx].repairYn ) return 0;
+	if( g_itemTable[itemTableIdx].durability == 0 ) return 0;
+	if( item->durability == g_itemTable[itemTableIdx].durability ) return 0;
+
+	return 1;
+}
+
+int GTH_GetAllRepairCost( myCharacterInfo_t* pc, int curSE )
+{
+	int i, itemIdx, dur, cost = 0;
+	int itemTableIdx; 
+	int wearPosition;
+	item_t *item;
+
+	for( i = EQUIP_WEAPON_1; i < EQUIP_EPACK; i ++ )
+	{
+		itemIdx = pc->equipment[i];
+		if( itemIdx < 0 ) continue;
+		item = &pc->item[itemIdx];
+		itemTableIdx = item->itemTableIdx;
+
+		// 2004-02-03 : 종남
+		wearPosition = g_itemTable[itemTableIdx].wearPosition;
+		// check repair item
+		if( !( wearPosition == ITEM_WEAR_POS_WEAPON ||
+			wearPosition == ITEM_WEAR_POS_UPPER || wearPosition == ITEM_WEAR_POS_LOWER || 
+			wearPosition == ITEM_WEAR_POS_AIR_PROTECTOR || wearPosition == ITEM_WEAR_POS_BODY_PROTECTOR ||
+			wearPosition == ITEM_WEAR_POS_GLOVES || wearPosition == ITEM_WEAR_POS_BOOTS ) ) continue;
+
+		if( item->durability >= g_itemTable[itemTableIdx].durability ) continue;
+		if( g_itemTable[itemTableIdx].durability <= 0 ) continue;
+		
+		if( !( g_itemClassTable[g_itemTable[itemTableIdx].classIdx].attackAtt || 
+			g_itemClassTable[g_itemTable[itemTableIdx].classIdx].defenseAtt ) ) continue;
+		
+		cost = GTH_GetRepairCost( item, curSE, dur );
+		
+		if( curSE < cost || dur == 0 ) continue;
+		curSE -= cost;
+	}
+	return( pc->curChargeSE - curSE );
+}
+
+int GTH_GetRepairCost( item_t* item, int curSE, int &checkDur )
+{
+	int itemTableIdx;
+	int cost, dur, decDur, totalPrice;
+	float a;
+	itemTableIdx = item->itemTableIdx;
+	cost = g_itemTable[itemTableIdx].sellCost;
+	cost = GTH_GetBuyPrice( item );
+	cost = (int)( (float)cost * 0.1f );
+
+	dur = g_itemTable[itemTableIdx].durability;
+
+	if( item->durability > dur ) item->durability = dur;
+
+	decDur = dur - item->durability;
+
+	// y = a * x^2
+	a = (float)cost / (float)( dur * dur );
+
+	// cost = a * (decDur) ^ 2
+	totalPrice = (int)( (float)( decDur * decDur ) * a );
+
+	if( totalPrice == 0 ) totalPrice = 1;
+
+	if( curSE < 0 ) return( totalPrice );
+
+	// 현재 SE가 작다면, 고칠수 있는 만큼의 내구력을 구함
+	if( curSE < totalPrice )
+	{
+		// dur = sqrt( cost / a )
+		checkDur = (int)sqrtf( (float)curSE / a );
+		totalPrice = curSE;
+	}
+	else checkDur = decDur;
+
+	return( totalPrice );
+}
+
+int GTH_GetBuyPrice( item_t* item )
+{
+	int cost, realCost;
+ 
+	if( GTH_IsStackItem( item ) )
+	{
+		cost = g_itemTable[item->itemTableIdx].sellCost;
+		cost *= ( item->durability + 1 );
+		return( cost );
+	}
+
+	// 2004-06-23 17:18, Corrected by yonghak
+	switch( item->itemTableIdx )
+	{
+	case QUESTSCROLL_ITEM_INDEX:
+		realCost = (int)( 2.5f * (float) g_questscrollTable[item->optionIdx[0]].data.price );
+		break;
+	default:
+		{
+			realCost = cost = g_itemTable[item->itemTableIdx].sellCost;
+			for( int i = 0; i < item->optionNumber; i ++ )
+			{
+				if( item->optionIdx[i] < 0 ) continue;
+				realCost += (int)( (float)cost * 0.1f );
+			}
+		}
+		break;
+	}
+	if( realCost < 0 ) realCost = 0;
+	return( realCost );
+}
+
+int GTH_GetSellPrice( item_t* item )
+{
+	float a, cost;
+	int dur, sellcost;
+	dur = g_itemTable[item->itemTableIdx].durability;
+	cost = (float)GTH_GetBuyPrice( item );
+	if( dur <= 0 ) a = cost;
+	else a = cost - (float)GTH_GetRepairCost( item, -1, dur );
+	a *= 0.3f;
+	sellcost = (int)a;
+	if( sellcost <= 0 ) sellcost = 0;
+	return( sellcost );
+}
+
+// 2003-11-17 : 종남
+int GTH_GetDepotPrice( item_t *item )
+{
+	// 현재 상점이용 가격은 300으로 동일
+	return( 300 );
+}
+
+int GTH_IsConsumptiveItem( item_t* item )
+{
+	int itemTableIdx, classIdx;
+	itemTableIdx = item->itemTableIdx;
+	classIdx = g_itemTable[itemTableIdx].classIdx;
+
+	if( !g_itemClassTable[classIdx].etcAtt ) return 0;
+	if( g_itemTable[itemTableIdx].useFlag ) return 1;
+
+	return 0;
+}
+
+int GTH_IsStackItem( item_t* item )
+{
+	int itemTableIdx;
+	itemTableIdx = item->itemTableIdx;
+
+	if( g_itemTable[itemTableIdx].stackFlag ) return 1;
+
+	return 0;
+}
+
+int GTH_CheckStackItem( item_t* item1, item_t* item2 )
+{
+	if( !GTH_IsStackItem( item1 ) ) return( 0 );
+	if( !GTH_IsStackItem( item2 ) ) return( 0 );
+	if( item1->itemTableIdx == item2->itemTableIdx ) return( 1 );
+	return( 0 );
+}
+
+int GTH_GetAttackAnimationIndex()
+{
+	int itemIdx, itemTableIdx, weaponType, classIdx, comboLevel;
+	int attackComboType, aniSetIndex, attackID, animIndex;
+
+	if( g_cgv.myCharacterInfo->calAttackLength < DEFAULT_RANGE_ATTACK_LEGNTH )
+	{
+		itemIdx = g_cgv.myCharacterInfo->equipment[EQUIP_WEAPON_1 + g_cgv.myCharacterInfo->curWeapon];
+
+		attackComboType = ATTACK_COMBO_TYPE_NOT;
+
+		if( itemIdx < 0 ) 
+		{
+			attackComboType = ATTACK_COMBO_TYPE_NOT;
+			aniSetIndex = 0;
+		}
+		else
+		{
+			if( g_cgv.myCharacterInfo->level > 0 && g_cgv.myCharacterInfo->level <= 10 ) comboLevel = 0;
+			else if( g_cgv.myCharacterInfo->level >= 11 && g_cgv.myCharacterInfo->level <= 30 ) comboLevel = 1;
+			else comboLevel = 2;
+
+			itemTableIdx = g_cgv.myCharacterInfo->item[itemIdx].itemTableIdx;
+			classIdx = g_itemTable[itemTableIdx].classIdx;
+			weaponType = g_itemClassTable[classIdx].weaponType;
+
+			aniSetIndex = g_itemTable[itemTableIdx].attackAni[g_cgv.myCharacterInfo->pcClass];
+
+			switch( weaponType )
+			{
+				// not weapon
+			case -1 :
+				attackComboType = ATTACK_COMBO_TYPE_NOT;
+				break;
+				// dagger
+			case WEAPON_TYPE_DANGGER :
+				attackComboType = ATTACK_COMBO_TYPE_NOT;
+				break;
+				// one-hand
+			case WEAPON_TYPE_ONEHAND_SWORD :
+				attackComboType = ATTACK_COMBO_TYPE_0 + comboLevel;
+				break;
+				// two-hand
+			case WEAPON_TYPE_TWOHAND_SWORD :
+				attackComboType = ATTACK_COMBO_TYPE_0 + comboLevel;
+				break;
+				// magic-bow
+			case WEAPON_TYPE_MAGIC_BOW :
+				attackComboType = ATTACK_COMBO_TYPE_NOT;
+				break;
+				// staff
+			case WEAPON_TYPE_STAFF :
+				attackComboType = ATTACK_COMBO_TYPE_NOT;
+				break;
+				// spiritor
+			case WEAPON_TYPE_SPIRITOR :
+				attackComboType = ATTACK_COMBO_TYPE_0 + comboLevel;
+				break;
+				// claw
+			case WEAPON_TYPE_CLAW :
+				attackComboType = ATTACK_COMBO_TYPE_NOT;
+				break;
+			}
+		}
+	}
+	else
+	{
+		itemIdx = g_cgv.myCharacterInfo->equipment[EQUIP_WEAPON_1 + g_cgv.myCharacterInfo->curWeapon];
+
+		if( itemIdx < 0 ) 
+		{
+			attackComboType = ATTACK_COMBO_TYPE_NOT;
+			aniSetIndex = 0;
+		}
+		else
+		{
+			itemTableIdx = g_cgv.myCharacterInfo->item[itemIdx].itemTableIdx;
+			
+			aniSetIndex = g_itemTable[itemTableIdx].attackAni[g_cgv.myCharacterInfo->pcClass];
+			
+			attackComboType = ATTACK_COMBO_TYPE_RANGE;
+		}
+	}
+	// not range attack
+	if( attackComboType == ATTACK_COMBO_TYPE_RANGE || attackComboType == ATTACK_COMBO_TYPE_NEAR_RANGE ) 
+	{
+		attackID = ANIM_ITEM_ATTACK_3;
+	}
+	else if( attackComboType == ATTACK_COMBO_TYPE_NOT )
+	{
+		attackID = ANIM_ITEM_ATTACK_3;
+	}
+	else if( attackComboType == ATTACK_COMBO_TYPE_0 )
+	{
+		attackID = ANIM_ITEM_ATTACK_0;
+	}
+	else if( attackComboType == ATTACK_COMBO_TYPE_1 )
+	{
+		attackID = ANIM_ITEM_ATTACK_1;
+	}
+	else if( attackComboType == ATTACK_COMBO_TYPE_2 )
+	{
+		attackID = ANIM_ITEM_ATTACK_2;
+	}
+	else attackID = ANIM_ITEM_ATTACK_3;
+
+	animIndex =	g_charManager->m_pCharLookupMng->GetAnimIDFromTable( ENTITY_PC, g_cgv.myCharacterInfo->pcClass, 
+		ANIMTYPE_BYITEM, aniSetIndex, attackID, 0 );
+	
+	return( animIndex );
+}
+
+int GTH_GetItemType( int itemTableIdx )
+{
+	int wearPosition = g_itemTable[itemTableIdx].wearPosition;
+	int type = -1;
+
+	// attack
+	if( wearPosition == ITEM_WEAR_POS_WEAPON ) 
+	{
+		type = 0;
+	}
+	else
+	// defense
+	if( wearPosition == ITEM_WEAR_POS_UPPER || wearPosition == ITEM_WEAR_POS_LOWER || 
+		wearPosition == ITEM_WEAR_POS_AIR_PROTECTOR || wearPosition == ITEM_WEAR_POS_BODY_PROTECTOR ||
+		wearPosition == ITEM_WEAR_POS_GLOVES || wearPosition == ITEM_WEAR_POS_BOOTS )
+	{
+		type = 1;
+	}
+	else
+	// epack
+	if( wearPosition == ITEM_WEAR_POS_EPACK )
+	{
+		type = 2;
+	}
+	else
+	// accessory
+	if( wearPosition == ITEM_WEAR_POS_RING || wearPosition == ITEM_WEAR_POS_NECKLACE ||
+		wearPosition == ITEM_WEAR_POS_BRACELET || wearPosition == ITEM_WEAR_POS_EARRING ) 
+	{
+		type = 3;
+	}
+	return( type );
+}
+
+// 2004-04-09 19:24, Jongnam
+// 플레이어를 타겟 리스트에 추가
+void AddTargetList( char *name )
+{
+	// 2004-06-17 16:24, Jongnam
+	// pvp라면 추가하지 않음
+	if( g_pApp->m_myCharacter->pvpMode ) return;
+
+	for( int i = 0; i < MAX_TARGET_PCLIST; i ++ )
+	{
+		if( !stricmp( name, g_cgv.myCharacterInfo->targetPCList[i] ) ) break;
+	}
+	// 타겟 리스트에 없을 경우 새로 추가
+	if( i == MAX_TARGET_PCLIST )
+	{
+		for( i = 0; i < MAX_TARGET_PCLIST; i ++ )
+		{
+			if( g_cgv.myCharacterInfo->targetPCList[i][0] == 0 )
+			{
+				strcpy( g_cgv.myCharacterInfo->targetPCList[i], name );
+				g_cgv.myCharacterInfo->targetPCListTime[i] = (int)g_timer.GetAppMilliTime();
+				break;
+			}
+			else if( g_timer.GetAppMilliTime() - g_cgv.myCharacterInfo->targetPCListTime[i] > 6000 )
+			{
+				strcpy( g_cgv.myCharacterInfo->targetPCList[i], name );
+				g_cgv.myCharacterInfo->targetPCListTime[i] = g_timer.GetAppMilliTime();
+				break;
+			}
+		}
+	}
+	// 시간을 업데이트
+	else
+	{
+		g_cgv.myCharacterInfo->targetPCListTime[i] = g_timer.GetAppMilliTime();
+	}
+}
+
+int GetChaosClass( Fx_CHARACTER_t *character )
+{
+	if( character->chaosPoint == 0 ) return( CHAOS_PURE );
+	// PSC 04-12-13 순천 카오수치 검사 범위 수정, 수정  
+	else if( 0 < character->chaosPoint && character->chaosPoint <= 10 ) return( CHAOS_GENERAL );
+	else if( character->chaosPoint > 10 && character->chaosPoint <=10000) return( CHAOS_DISORDER );
+	else if( character->chaosPoint > 10000 && character->chaosPoint <=29500 ) return( CHAOS_MONSTER );
+	return( CHAOS_ATROCITY );
+}
+
+// 2004-04-21, yonghak
+int IsPKDisableWorld( int worldIdx )
+{	
+	
+	//  elfshadow 2005-06-08 11:48 begin	
+	if ( g_pApp->m_myCharacter->worldIdx == DAN_BATTLEMAP_NUM )
+		return FALSE;
+
+//	if(FALSE == (gcpGMCtrl->m_cpPKTimeCtrl)->isPK()) 
+//		return 1;	
+
+	int worldIdxList[] = {0,1,2,3,4,5,6,9,10,11,12,13,14,15};//7,8,16
+	int num = sizeof( worldIdxList ) / 4;
+
+	for (int i=0; i<num; i++)
+	{
+		if ( worldIdx == worldIdxList[i] )
+			return 1;
+	}
+	return 0;
+}
+
+/*===========================================================================
+    Func : GetGuildMarkInfomationByFileName()
+    1. // (yellow 2004-04-24 21:41)
+	2. 길드 마크 이미지 파일로 길드 마크 정보 얻기...
+	3. 이 함수를 호출해줄때를 결정해야 할텐데... 프로그램을 실행했을때 할지... 아니면 게임 서버에 접속할때 할지...
+	4. 게임 서버에 접속할때 호출해서 마크를 로딩한다면 쓸데없는 데이타를 로딩할 필요가 없으니까 좋다...
+	5. 다른 서버로 다시 접속한다면.... 귀찮아 지겠군...
+	6. return value; 이 파일이 valid 한지 invalid 한지 만약 invalid 하다면 로딩할 필요없다.
+===========================================================================*/
+
+guildMarkInfo_t		g_guildMarkInfo[MAX_GUILDS];
+
+// ( elfshadow 2004-05-24 )
+//bool GetGuildMarkInformationByFileName( const char *fname, int &serverGroupId, int &guildIdx, int &updateTime )
+bool GetGuildMarkInformationByFileName( const char *fname, int &serverGroupId, short &guildIdx, int &updateTime )
+{
+	int year, month, day;
+	char buffer[32];
+
+	// 이게 파싱.... 제길... 웃기네... 머리 좀 굴려라...
+	// 근데 솔직히 복잡할 필요없잖아...
+
+	// 화일 이름 규격...
+	// serverGroup(xx)-guildIdx(xxx)-updatetime(xxxxxx).bmp -> xx-xxx-xxxxxx.bmp
+
+	// 규격체크...
+	if( fname[2] != '-' || fname[6] != '-' ) return false;
+
+	memset( buffer, 0, sizeof(buffer) );
+
+
+	buffer[0] = fname[0];
+	buffer[1] = fname[1];
+
+	serverGroupId = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	// 서버에 접속할때 로딩을 한다면 여기서 체크해준다...
+	if( serverGroupId != g_cgv.selectedGroupIdx ) return false;
+
+
+	buffer[0] = fname[3];
+	buffer[1] = fname[4];
+	buffer[2] = fname[5];
+
+	guildIdx = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	// 2004-07-09 16:21, Added by yonghak
+	if( guildIdx < 0 || guildIdx >= MAX_GUILDS ) return false;
+
+
+	buffer[0] = fname[7];
+	buffer[1] = fname[8];
+	buffer[2] = fname[9];
+	buffer[3] = fname[10];
+	buffer[4] = fname[11];
+	buffer[5] = fname[12];
+
+	updateTime = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	buffer[0] = fname[7];
+	buffer[1] = fname[8];
+
+	// 년
+	year = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	buffer[0] = fname[9];
+	buffer[1] = fname[10];
+
+	// 월
+	month = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	buffer[0] = fname[11];
+	buffer[1] = fname[12];
+
+	// 일
+	day = atoi( buffer );
+	memset( buffer, 0, sizeof(buffer) );
+
+	// 월, 일 체크...
+	//if( month < 1 || month > 12 ) return false;
+	//if( day < 1 || day > 31 ) return false;
+
+	return true;
+}
+
+
+/*===========================================================================
+    Func : InitGuildMarkInfo()
+    1. // (yellow 2004-05-25 15:40)
+	2. 길드마크 정보를 초기화한다.
+===========================================================================*/
+void InitGuildMarkInfo()
+{
+	int i;
+
+	for( i=0; i<MAX_GUILDS; i++)
+	{
+		g_guildMarkInfo[i].serverGroupId = -1;
+		g_guildMarkInfo[i].guildIdx = -1;
+		g_guildMarkInfo[i].updateTime = 0;
+		memset( g_guildMarkInfo[i].fname, 0, 256 );
+		g_guildMarkInfo[i].bLoaded = false;
+	}
+}
+
+/*===========================================================================
+    Func : MakeGuildMarkInfo()
+    1. // (yellow 2004-04-25 15:32)
+	2. 클라이언트에 있는 모든 길드 마크를 체크한다...
+===========================================================================*/
+void MakeGuildMarkInfo()
+{
+	// 정해진 폴더가 있겠지...
+	WIN32_FIND_DATA		FindFileData;
+	HANDLE hFind;
+	guildMarkInfo_t		guildMarkInfo;
+
+	hFind = FindFirstFile( "..\\danmark\\?????????????.bmp", &FindFileData );
+	//hFind = FindFirstFile( "..\\danmark\\??-???-??????.bmp", &FindFileData );
+	if( hFind == INVALID_HANDLE_VALUE )
+	{
+		return;
+	}
+
+	while( 1 )
+	{
+		// load found filename
+		if( GetGuildMarkInformationByFileName( FindFileData.cFileName, guildMarkInfo.serverGroupId, guildMarkInfo.guildIdx, guildMarkInfo.updateTime ) )
+		{
+			if( strcmp( g_guildMarkInfo[guildMarkInfo.guildIdx].fname, FindFileData.cFileName ) != 0 )
+			{
+				g_guildMarkInfo[guildMarkInfo.guildIdx].bLoaded = false;
+			}
+
+			g_guildMarkInfo[guildMarkInfo.guildIdx].serverGroupId = guildMarkInfo.serverGroupId;
+			g_guildMarkInfo[guildMarkInfo.guildIdx].guildIdx = guildMarkInfo.guildIdx;
+			g_guildMarkInfo[guildMarkInfo.guildIdx].updateTime = guildMarkInfo.updateTime;
+			strcpy( g_guildMarkInfo[guildMarkInfo.guildIdx].fname, FindFileData.cFileName );
+		}
+
+		if( !FindNextFile( hFind, &FindFileData ) )
+			break;
+	}
+	FindClose( hFind );
+}
+
+
+void LoadGuildMark()
+{
+	Sleep(0);
+	//2004-11-3 Kim Jin Gyu begin
+	/*
+	int i;
+	char fname[256];
+	
+	MakeGuildMarkInfo();
+
+	// (yellow 2004-05-19 11:52)
+	g_ifMng->m_guildMarkMng->PreparePactMarkBuffers( MAX_GUILDS );
+
+	for( i=0; i<MAX_GUILDS; i++ )
+	{
+		if( g_guildMarkInfo[i].fname[0] != 0 )
+		{
+			if( g_guildMarkInfo[i].serverGroupId == g_cgv.selectedGroupIdx )
+			{
+				if( g_guildMarkInfo[i].bLoaded == false )
+				{
+					memset( fname, 0, sizeof(fname) );
+					strcpy( fname, "..\\danmark\\" );
+					strcat( fname, g_guildMarkInfo[i].fname );
+
+					g_ifMng->m_guildMarkMng->RegisterPactMark( 
+						g_guildMarkInfo[i].guildIdx, 
+						g_guildMarkInfo[i].updateTime, 
+						g_guildMarkInfo[i].serverGroupId, 
+						fname );
+
+					g_guildMarkInfo[i].bLoaded = true;
+				}
+			}
+		}
+	}
+	
+	g_ifMng->m_guildMarkMng->RestoreDeviceObjects();
+	/**/
+	//2004-11-3 Kim Jin Gyu end
+}
+
+#include <direct.h> 
+
+// 2004-06-15 15:30, Corrected by yonghak
+bool MakeGuildMarkFile( short guildIdx, int updateTime, char *buffer )
+{
+	HANDLE file;
+	char fname[256];
+
+	// 2004-06-16 21:23, Jongnam
+	// 폴더 생성
+	mkdir( "../danmark/" );
+	
+	memset( fname, 0, 256 );
+	sprintf( fname, "..\\danmark\\%02d-%03d-%06d.bmp", g_cgv.selectedGroupIdx, guildIdx, updateTime );
+
+	file = CreateFile( (LPCSTR)fname, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+	if( file == INVALID_HANDLE_VALUE )
+		return	false;
+
+	BITMAPFILEHEADER    bmpfh;
+    BITMAPINFOHEADER    bmih;
+
+	// 14 byte
+	//bmpfh.bfType = 0x4D << 8 + 0x42;
+	bmpfh.bfType = *((WORD*) "BM");
+	bmpfh.bfSize = 822;
+	bmpfh.bfReserved1 = 0;
+	bmpfh.bfReserved2 = 0;
+	bmpfh.bfOffBits = 54;
+
+	// 40 byte
+	bmih.biSize = sizeof(BITMAPINFOHEADER);
+	bmih.biWidth = 16;
+	bmih.biHeight = 16; // DrawDibDraw Version : biHeight > 0
+	bmih.biPlanes = 1;
+	bmih.biBitCount = 24;
+	bmih.biCompression		= BI_RGB; // 8
+	bmih.biSizeImage		= 0;
+    bmih.biXPelsPerMeter	= 0; // 2834
+	bmih.biYPelsPerMeter	= 0; // 2834
+	bmih.biClrUsed			= 0;
+	bmih.biClrImportant		= 0;
+
+	DWORD written;
+
+	if( !WriteFile( file, &bmpfh, sizeof(BITMAPFILEHEADER), &written, NULL ) )
+	{
+		CloseHandle( file );
+		return false;
+	}
+
+	if( !WriteFile( file, &bmih, sizeof(BITMAPINFOHEADER), &written, NULL ) )
+	{
+		CloseHandle( file );
+		return false;
+	}
+
+	if( !WriteFile( file, buffer, 768, &written, NULL ) )
+	{
+		CloseHandle( file );
+		return false;
+	}
+
+	CloseHandle( file );
+	return true;
+}
+
+// 2004-06-15 15:30, Corrected by yonghak
+bool CheckGuildMarkFile( char *fname, char *buffer )
+{
+	HANDLE	file;
+	DWORD	fileSize;
+	char msgBuffer[256];
+
+	file = CreateFile( (LPCSTR)fname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, NULL );
+	if( file == INVALID_HANDLE_VALUE )
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,938) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		return false;
+	}
+
+	BITMAPFILEHEADER    bmpfh;
+    BITMAPINFOHEADER    bmih;
+
+	fileSize = GetFileSize( file, NULL );
+	if( fileSize == INVALID_FILE_SIZE )
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		CloseHandle( file );
+		return false;
+	}
+
+	DWORD	byteRead;
+
+	if( !ReadFile( file, &bmpfh, sizeof(BITMAPFILEHEADER), &byteRead, NULL ) )
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		CloseHandle( file );
+		return false;
+	}
+
+	if( !ReadFile( file, &bmih, sizeof(BITMAPINFOHEADER), &byteRead, NULL ) )
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		CloseHandle( file );
+		return false;
+	}
+
+	// 14 byte
+//	if( bmpfh.bfSize != 822 )
+//	{
+//		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+//		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), buffer );
+//
+//		CloseHandle( file );
+//		return false;
+//	}
+
+	// 40 byte
+	if( bmih.biWidth != 16 || bmih.biHeight != 16 || bmih.biBitCount != 24 )
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		CloseHandle( file );
+		return false;
+	}
+
+//	if( !ReadFile( file, buffer, 1024+256, &byteRead, NULL ) )
+	if( !ReadFile( file, buffer, 768, &byteRead, NULL ) )
+
+	{
+		strcpy( msgBuffer, g_LPACK.GetMessage(0,939) );
+		g_ifMng->SetMessage( g_LPACK.GetMessage(0,322), msgBuffer );
+
+		CloseHandle( file );
+		return false;
+	}
+
+	CloseHandle( file );
+
+	return true;
+}
+
+/*===========================================================================
+    Func : GTH_Character_Pushed()
+	1. (vemer 2004-04-28 16:22)    
+===========================================================================*/
+void GTH_Character_Pushed(Fx_CHARACTER_t *character)
+{
+	vec3_t delta, position;
+	float speed;
+
+	if( character->flag_replayAnim == 1 )
+	{
+		// 자기 자신일 경우 이동을 중지함
+		if( character->idxOnServer == g_cgv.myPCIdxOnServer && character->entityType == ENTITY_PC ) 
+		{
+			g_cursor->QuitPlayerTargetedMove();
+			g_cgv.clickEvent = GTH_CEV_CHAR_NONE;
+		}
+	}
+
+	character->SetupVectors();
+	character->GetFwdVector( delta );
+	VectorNegate( delta , delta );//
+	delta[2] = 0;
+	VectorNormalize( delta );
+	//speed = BACK_SCALE * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	speed = 2.0f * SPEED_CONSTANT * character->moveSpeed * g_timer.GetElapsedTime();
+	VectorScale( delta , delta , speed );
+
+	VectorCopy( position , character->position );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->position , position );
+
+	// change sync position
+	VectorCopy( position , character->syncPosition );
+	g_move->Pmove( position , delta , character->angles );
+	VectorCopy( character->syncPosition , position );
+
+	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_ATTACKED_0 );
+
+	// 변경된 몬스터 좌표를 서버로 보내서 세팅해야 하나?
+//	GTH_ChangeAnimation(character, ANIMTYPE_BYITEM, ANIM_ITEM_WALK_BACK);
+
+}
+
+int GTH_GetUsedMonster_AnimationList( int list[] )
+{
+	int					monsterIdx;
+	int					aniSetType;
+	int					animIndex;
+	int					numUsedAni	=	0;
+	int					i, j, k;
+
+	FX_CCharLookupMng	*pLookup		=	g_charManager->m_pCharLookupMng;
+	FX_CAnimManager		*pAnim			=	g_charManager->m_pAnimManager;
+
+
+	// 사용하는 몬스터의 애니매이션 list를 얻음
+	for( i = 0; i < g_pApp->m_mapInfos[0].monsterKind; i ++ )
+	{
+		monsterIdx		=	g_pApp->m_mapInfos[0].monsters[i];
+		aniSetType		=	g_monsterTable[monsterIdx].aniSetType;
+
+		if( aniSetType < 0 ) continue;
+
+		for( j = 0; j < MAX_ANIMCOUNT_TYPE; j ++ )
+		{
+			animIndex				=	pLookup->GetAnimIDFromTable( ENTITY_MONSTER,	// 몬스터
+																monsterIdx,				// 몬스터 인덱스
+																aniSetType,				// 애니매이션 셋
+																0,						// 몬스터에는 쓰지 않음
+																j,						// 애니매이션 종류
+																0 );					// 쓰지 않음
+			if( animIndex < 0 ) continue;
+			
+			// 중복되는것이 있다면 추가하지 않음
+			for( k = 0; k < numUsedAni; k ++ )
+			{
+				if( list[k] == animIndex ) break;
+			}
+			if( k != numUsedAni ) continue;
+
+			list[numUsedAni ++]	=	animIndex;
+		}
+	}
+
+	return( numUsedAni );
+}
+
+
+/*===========================================================================
+    Func : FindTransformAttackLength()
+    
+===========================================================================*/
+float	FindTransformAttackLength(int transformEntityIdx, int transformType)
+{
+	if( transformEntityIdx >= MAX_NUMBER_OF_MONSTER_TABLE )	return 0.0f;
+
+//	if( transformType == ENTITY_MONSTER )
+//	{
+		return (float)g_monsterTable[transformEntityIdx].atkLength;
+//	}
+
+	return 0.0f;
+} 
+
+// 2004-08-03 11:35, Jongnam
+// RA 충전 가격 = [RA 1포인트 당 가격]*[(에너지팩의 Level^0.67 * 1.5)/8]
+// SA 충전 가격 = [SA 1포인트 당 가격]*[(에너지팩의 Level^0.67 * 1.7)/8]
+float	GetEpackRechargePrice_RA( int onceRecovery, float cost, int level )
+{
+	// PSC 04-12-14 순천 PK수치에 따라 차등적으로 가격을 결정한다. 수정
+	float tempcost=(float)onceRecovery * cost * powf( (float)level, 0.67f ) * 1.5f / 8.0f;
+	switch(GetChaosClass(g_pApp->m_myCharacter)) {
+	case CHAOS_DISORDER:
+		tempcost=tempcost*3;
+		
+		break;
+	case CHAOS_MONSTER:
+		tempcost=tempcost*5;
+		break;
+		
+	}
+
+	return tempcost;
+//	 return ( (float)onceRecovery * cost * powf( (float)level, 0.67f ) * 1.5f / 8.0f  );
+} 
+
+float	GetEpackRechargePrice_SA( int onceRecovery, float cost, int level )
+{
+	// PSC 04-12-14 순천 PK수치에 따라 차등적으로 가격을 결정한다. 수젗
+	float tempcost= (float)onceRecovery * cost * powf( (float)level, 0.67f ) * 1.7f / 8.0f;
+	switch(GetChaosClass(g_pApp->m_myCharacter)) {
+	case CHAOS_DISORDER:
+		tempcost=tempcost*3;
+		break;
+	case CHAOS_MONSTER:
+		tempcost=tempcost*5;
+		break;
+		
+	}
+
+	return tempcost;
+//	return( (float)onceRecovery * cost * powf( (float)level, 0.67f ) * 1.7f / 8.0f  );
+}
+
+// elfshadow 2004-07-12
+// 리턴값 1이면 무기 교환 가능
+// 리턴값 0이면 무기 교환 불가능
+bool CheckStateWeaponChange(Fx_CHARACTER_t* character)
+{
+
+	// 현재 변신중이거나 죽은 상태라면..
+	if ( character->isTransform || !character->isAlive )
+		return 0;
+
+	// 공격 관련 에니메이션이라면 무기교환 불가 
+	switch(character->event)
+	{
+	case GTH_EV_CHAR_ATTACK:
+	case GTH_EV_CHAR_SKILL:
+	case GTH_EV_CHAR_SKILLCASTING:
+	case GTH_EV_CHAR_BEFORE_TELEPORT:
+	case GTH_EV_CHAR_TELEPORT:
+	case GTH_EV_CHAR_FREEZE:
+	case GTH_EV_CHAR_PUSHED:
+	case GTH_EV_CHAR_HIDE:
+		{
+			g_ifMng->AddSysMessage( g_LPACK.GetMassage(LPACK_TYPE_NORMAL,232) );
+			return 0;
+		}
+	}	
+	return 1;
+}
+
+// 2004-07-29 20:14, Jongnam
+bool CheckAvailableGenCapability( myCharacterInfo_t *pc, int genType )
+{
+	if( genType > J_EARTH ) return false;
+
+	// 젠 숙련도가 없으면 유효하지 않다
+	if( pc->genCapability[genType] < 0 ) return false;
+	// 나의 젠이라면 유효함
+	if( pc->pcClass == genType ) return true;
+	// 만약 각성 이전이라면 자신의 젠이 아닌 모든 숙련도는 유효하지 않다.
+	if( pc->pcJob <= J_EARTH ) return false;
+	
+	return true;
+}
+
+
+// [GAMBLE_SYSTEM] elfshadow 2005-03-24 17:23 begin
+
+// ==================================================================================================
+// Func		:  GTH_GetMatchMyItemIdx_fromInventory(int itemtableIdx)
+// Desc		:  인벤토리내에 아이템 테이블에 해당하는 아이템 인덱스를 구한다.
+// Returns	:  void 
+// ==================================================================================================
+int GTH_GetMatchMyItemIdx_fromInventory(const int itemtableIdx)
+{
+	for (int InvenToryIdx = 0; InvenToryIdx < MAX_INVENTORY_SIZE; InvenToryIdx++)
+	{		
+		int ItemIdx =  g_cgv.myCharacterInfo->inventory[InvenToryIdx];
+		
+		if( ItemIdx < 0 || ItemIdx >= MAX_NUMBER_OF_OWNITEM)
+			continue;
+		
+		if ( g_cgv.myCharacterInfo->item[ItemIdx].itemTableIdx == itemtableIdx)
+			return ItemIdx;
+	}	
+	return -1;
+}
+
+
+// ==================================================================================================
+// Func		:  GTH_GetInvenPosMatchMyItemTableIdx(const int itemtableIdx)
+// Desc		: 
+// Returns	:  int 
+// ==================================================================================================
+int GTH_GetInvenPosMatchMyItemTableIdx(const int itemtableIdx)
+{
+	for (int InvenToryIdx = 0; InvenToryIdx < MAX_INVENTORY_SIZE; InvenToryIdx++)
+	{		
+		int ItemIdx =  g_cgv.myCharacterInfo->inventory[InvenToryIdx];
+		
+		if( ItemIdx < 0 || ItemIdx >= MAX_NUMBER_OF_OWNITEM)
+			continue;
+		
+		if ( g_cgv.myCharacterInfo->item[ItemIdx].itemTableIdx == itemtableIdx)
+			return InvenToryIdx;
+	}	
+	return -1;
+}
+
+
+// ==================================================================================================
+// Func		:  invenPos, int StackConut)
+// Desc		:  해당하는 포지션의 아이템을 StackCount 만큼 삭제한다.
+// Returns	:  BOOL	DeleteItemFromMyInventory(int 
+// ==================================================================================================
+BOOL	DeleteItemFromMyInventoryByInvenPos(const int invenPos, const int StackConut)
+{		
+	if ( invenPos < 0 || invenPos >= MAX_INVENTORY_SIZE)
+		return FALSE;
+
+	int itemIdx = g_cgv.myCharacterInfo->inventory[invenPos];
+
+	if ( itemIdx < 0 || itemIdx >= MAX_NUMBER_OF_OWNITEM)
+		return FALSE;	
+
+	item_t *pItem = NULL;
+	pItem = &g_cgv.myCharacterInfo->item[itemIdx];	
+
+	// [NEW단전] elfshadow 2005-08-24 16:48 begin
+	if (GTH_IsStackItem (pItem) == FALSE)
+	{
+		GTH_DeleteMyItem( pItem );
+		g_cgv.myCharacterInfo->inventory[invenPos] = -1;
+	}
+	else
+	{		
+	if( pItem->durability - StackConut >= 0 )
+	{
+		pItem->durability -= StackConut;
+	}
+	else
+	{
+		GTH_DeleteMyItem( pItem );
+		g_cgv.myCharacterInfo->inventory[invenPos] = -1;
+	}
+	}
+	// [NEW단전] elfshadow 2005-08-24 16:49 end	
+
+//	if( pItem->durability - StackConut >= 0 )
+//	{
+//		pItem->durability -= StackConut;
+//	}
+//	else
+//	{
+//		GTH_DeleteMyItem( pItem );
+//		g_cgv.myCharacterInfo->inventory[invenPos] = -1;
+//	}
+
+	return TRUE;
+}
+
+
+

@@ -1,0 +1,25 @@
+
+
+//VC에 다음 사항을 추가 하여야 정상적으로 작동합니다.
+
+1. Projet -> Setting -> c/c++ -> Preporcessor definition 에 다음 두개를 추가하세요
+   _TERRA_BILLING  //Terra Blilling을 활성화 합니다.
+   _MASTER_SERVER    //Terra Billing소스는 Master Server와 Game Server 동일 루틴을 사용합니다. 구분자.
+
+
+2. server.cfg 파일에 다음을 추가 하십시요.
+
+	//malaysia terra billing server information
+	//billing 동작 여부
+	TERRA_BILLING_SERVER_YESNO 		yes
+	//billing server ip
+	TERRA_BILLING_SERVER_IP    		202.75.43.23
+	//billing server port number
+	TERRA_BILLING_SERVER_PORT  		3111
+	//테라에서 할당해준 GTH 게임번호
+	TERRA_BILLING_GTH_GAME_NO  		12
+	//빌링관련 로그파일 생성 여부
+	TERRA_BILLING_LOG_OUTPUT   		yes
+	//빌링관련 로그파일의 update간격 파일은 시간단위로 새로 생성합니다.
+	//이부분은 fresh 가격을 의미합니다.
+	TERRA_BILLING_LOG_UPDATE_MILISECOND 	1000
