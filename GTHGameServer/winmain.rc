@@ -1,0 +1,173 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
+#include "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Korean resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_KOR)
+#ifdef _WIN32
+LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
+#pragma code_page(949)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_MS                  ICON    DISCARDABLE     "MS.ICO"
+IDI_SMALL               ICON    DISCARDABLE     "SMALL.ICO"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDC_MS MENU DISCARDABLE 
+BEGIN
+    POPUP "Console(&C)"
+    BEGIN
+        MENUITEM "Exit(&X)",                    IDM_EXIT
+    END
+    POPUP "Debug(&D)"
+    BEGIN
+        MENUITEM "Console Info",                IDM_DEBUG_CONSOLE
+    END
+    POPUP "Help(&H)"
+    BEGIN
+        MENUITEM "&About ...",                  IDM_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDC_MS ACCELERATORS MOVEABLE PURE 
+BEGIN
+    "?",            IDM_ABOUT,              ASCII,  ALT
+    "/",            IDM_ABOUT,              ASCII,  ALT
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_ABOUTBOX DIALOG DISCARDABLE  22, 17, 230, 75
+STYLE DS_MODALFRAME | WS_CAPTION | WS_SYSMENU
+CAPTION "About"
+FONT 8, "System"
+BEGIN
+    ICON            IDI_MS,IDC_MYICON,14,9,20,20
+    LTEXT           "Gate to Heavens Game Server 2004-06-28",IDC_STATIC,43,
+                    10,137,8,SS_NOPREFIX
+    LTEXT           "Copyright (C)Jystech 2002",IDC_STATIC,43,20,119,8
+    DEFPUSHBUTTON   "OK",IDOK,195,6,30,11,WS_GROUP
+END
+
+IDD_SERVER_INFO DIALOG DISCARDABLE  0, 0, 187, 243
+STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Server Information"
+FONT 10, "System"
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,58,216,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,115,216,50,14
+    EDITTEXT        IDC_SERVERINFO_SERVERNAME,62,21,107,12,ES_AUTOHSCROLL | 
+                    WS_DISABLED
+    LTEXT           "Server Name :",IDC_STATIC,10,21,47,12
+    LTEXT           "Server IP :",IDC_STATIC,10,39,47,12
+    EDITTEXT        IDC_SERVERINFO_IP,62,39,107,12,ES_AUTOHSCROLL | 
+                    WS_DISABLED
+    LTEXT           "Server Port :",IDC_STATIC,10,57,47,12
+    EDITTEXT        IDC_SERVERINFO_PORT,62,57,48,12,ES_AUTOHSCROLL | 
+                    WS_DISABLED
+    LTEXT           "FPS :",IDC_STATIC,10,75,47,12
+    EDITTEXT        IDC_SERVERINFO_FPS,62,75,48,12,ES_AUTOHSCROLL | 
+                    WS_DISABLED
+    LTEXT           "Information Message",IDC_STATIC,17,129,70,8
+    EDITTEXT        IDC_SERVERINFO_MESSAGE,17,147,154,13,ES_AUTOHSCROLL
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#define APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""windows.h""\r\n"
+    "#undef APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""resource.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "resource.h\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    IDD_SERVER_INFO, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 180
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 236
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // Korean resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

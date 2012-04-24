@@ -1,0 +1,10 @@
+
+
+
+
+
+//VC에 다음 사항을 추가 하여야 정상적으로 작동합니다.
+
+1. Projet -> Setting -> c/c++ -> Preporcessor definition 에 다음 두개를 추가하세요
+   _TERRA_GIFTCARD  //Terra Gift Card을 활성화 합니다.
+   

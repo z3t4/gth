@@ -1,0 +1,94 @@
+// Created by Microsoft (R) C/C++ Compiler Version 12.00.8168.0 (f52b6645).
+//
+// EGameEncrypt.tlh
+//
+// C++ source equivalent of Win32 type library EGameEncrypt.dll
+// compiler-generated file created 03/08/05 at 01:57:14 - DO NOT EDIT!
+
+#pragma once
+#pragma pack(push, 8)
+
+#include <comdef.h>
+
+//
+// Forward references and typedefs
+//
+
+struct /* coclass */ EGameEncrypt;
+struct __declspec(uuid("4f3642d1-5aff-499a-92da-8d3aef5ee32b"))
+/* dual interface */ IEGameEncrypt;
+struct /* coclass */ Rpiemd160;
+struct __declspec(uuid("c5edbbec-e507-4741-8fe3-3f5f78d86497"))
+/* dual interface */ IRpiemd160;
+
+//
+// Smart pointer typedef declarations
+//
+
+_COM_SMARTPTR_TYPEDEF(IEGameEncrypt, __uuidof(IEGameEncrypt));
+_COM_SMARTPTR_TYPEDEF(IRpiemd160, __uuidof(IRpiemd160));
+
+//
+// Type library items
+//
+
+struct __declspec(uuid("c47f5bd3-0e04-41c5-a417-fa453f5ee3be"))
+EGameEncrypt;
+    // [ default ] interface IEGameEncrypt
+
+struct __declspec(uuid("4f3642d1-5aff-499a-92da-8d3aef5ee32b"))
+IEGameEncrypt : IDispatch
+{
+    //
+    // Wrapper methods for error-handling
+    //
+
+    HRESULT Encode (
+        _bstr_t org,
+        BSTR * dest );
+    HRESULT Decode (
+        _bstr_t org,
+        BSTR * dest );
+
+    //
+    // Raw methods provided by interface
+    //
+
+    virtual HRESULT __stdcall raw_Encode (
+        BSTR org,
+        BSTR * dest ) = 0;
+    virtual HRESULT __stdcall raw_Decode (
+        BSTR org,
+        BSTR * dest ) = 0;
+};
+
+struct __declspec(uuid("cec0dc44-42bb-41d2-ba5d-34cfd1e15ccb"))
+Rpiemd160;
+    // [ default ] interface IRpiemd160
+
+struct __declspec(uuid("c5edbbec-e507-4741-8fe3-3f5f78d86497"))
+IRpiemd160 : IDispatch
+{
+    //
+    // Wrapper methods for error-handling
+    //
+
+    _bstr_t Hash (
+        _bstr_t org );
+
+    //
+    // Raw methods provided by interface
+    //
+
+    virtual HRESULT __stdcall raw_Hash (
+        BSTR org,
+        BSTR * dest ) = 0;
+};
+
+//
+// Wrapper method implementations
+//
+
+#include "EGameEncrypt.tli"
+
+#pragma pack(pop)

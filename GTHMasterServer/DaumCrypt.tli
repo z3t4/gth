@@ -1,0 +1,66 @@
+// Created by Microsoft (R) C/C++ Compiler Version 12.00.9782.0 (9f19d743).
+//
+// DaumCrypt.tli
+//
+// Wrapper implementations for Win32 type library DaumCrypt.DLL
+// compiler-generated file created 04/21/12 at 18:45:29 - DO NOT EDIT!
+
+#pragma once
+
+//
+// interface IEncrypt wrapper method implementations
+//
+
+inline HRESULT IEncrypt::Init ( _bstr_t key ) {
+    HRESULT _hr = raw_Init(key);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _hr;
+}
+
+inline _bstr_t IEncrypt::GetInput ( ) {
+    BSTR _result;
+    HRESULT _hr = get_Input(&_result);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _bstr_t(_result, false);
+}
+
+inline void IEncrypt::PutInput ( _bstr_t pVal ) {
+    HRESULT _hr = put_Input(pVal);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+}
+
+inline _bstr_t IEncrypt::GetOutput ( ) {
+    BSTR _result;
+    HRESULT _hr = get_Output(&_result);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _bstr_t(_result, false);
+}
+
+//
+// interface IDecrypt wrapper method implementations
+//
+
+inline HRESULT IDecrypt::Init ( _bstr_t key ) {
+    HRESULT _hr = raw_Init(key);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _hr;
+}
+
+inline _bstr_t IDecrypt::GetInput ( ) {
+    BSTR _result;
+    HRESULT _hr = get_Input(&_result);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _bstr_t(_result, false);
+}
+
+inline void IDecrypt::PutInput ( _bstr_t pVal ) {
+    HRESULT _hr = put_Input(pVal);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+}
+
+inline _bstr_t IDecrypt::GetOutput ( ) {
+    BSTR _result;
+    HRESULT _hr = get_Output(&_result);
+    if (FAILED(_hr)) _com_issue_errorex(_hr, this, __uuidof(this));
+    return _bstr_t(_result, false);
+}

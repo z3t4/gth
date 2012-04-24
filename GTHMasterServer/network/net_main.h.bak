@@ -1,0 +1,330 @@
+#define RELIABLE_WAITTIME   1000
+#define DISCONNECT_WAITTIME 60000      // 60초
+#define MAX_RESENDING_TIMES   10       // 10회 연속 전송 실패시 접속이 끊어진 것으로 처리 
+
+#define MAX_CLIENTS			1500          // 클라이언트
+
+
+// [스토리지확장] elfshadow 2005-07-14 18:57 begin
+//#define MAX_CHARACTER_DATA	3	// 최대 저장되는 캐릭터 수
+#define MAX_CHARACTER_DATA	6	// 최대 저장되는 캐릭터 수
+
+#include "hicocoon/hicocoonctrl.h"
+typedef struct 
+{
+	public:
+		struct tagIdentification{
+			public:
+				enum enumCertification{
+					nick_name=0,
+					real_name=1,
+					developer=2,
+					unknown=3,
+				};
+				
+			public:
+				enum enumCertification Certification;
+				int  PayLevel;
+		};
+
+		struct tagPremiumInfo{
+			public:
+				enum{
+					maxmap_number=30,										// 최대 맵 수 
+					max_charactor_slot_num=3,
+				};
+
+				enum enumMeberShipType{
+					Free=0,
+					Pay,
+					Max,
+				};
+
+
+
+				struct tagMap{
+					struct tagAttr
+					{
+						BOOL    bAllow;													// 맵 이용 가능 여부 
+						int		iRemainSecond;
+						BOOL    bDecreseRemainSecond;									// Remain Second 감소 여부 
+						BOOL	bDecreseAllRemainSecond;
+
+						//유료 2004-12-26 queen begin			
+						float	fAddExpRatio;											// 추가 경험치 습득률    
+						float	fAddGenExpRatio;										// 추가 젠경험치 습득률  
+						float	fAddGenCapabilityRatio;									// 추가 젠 숙련도 습득률 
+						float	fAddItemDropRatio;										// 추가 아이템 드롭률 
+						float	fAddNarkRatio;											// 추가 나크 
+						//유료 2004-12-26 queen end
+					};
+
+					struct tagAttr Default;
+					struct tagAttr Cur;
+				};
+
+				struct tagGamble{
+					public:
+						enum{
+							maxnum_apperance_item_group=16,							// 겜블에서 등장하는 최대 아이템 구룹수 
+						};
+						struct tagItemGroup{
+							BOOL bApperance;
+						};
+					public:
+						float fAddPriceRatio;												// 겜블 사용료 추가 가산율
+						struct tagItemGroup ItemGroupArray[maxnum_apperance_item_group];	// 겜블시 나올수있는 아이템 구룹을 의미한다.						
+				};
+
+				//유료 경험치 ,나크 손실률 변경 2004-12-14 queen begin				
+				struct tagDie{
+					float fExpRatio;												// 캐릭터 사망시 소실 경험치 율
+					float fNakRatio;												// 캐릭터 사망시 소실 나크 율 
+					
+				};
+				//유료 경험치 ,나크 손실률 변경 2004-12-14 queen end
+
+				struct tagItemOptionUpgrade{
+					int   iMaxlevel;												// 아이템 업그레이드시 최대 옵션 레벨
+					float fAddPriceRatio;											// 업그레이드 비용 추가 가산율 
+				};
+
+
+				//실제 초기화 가능 횟수 = iDefaultInitCount + iInitCount 값이다.
+				//감소 우선순위는 iInitCount 값이며 이 값이 0 이면 iDefaultInitCount에서 감소 시켜라.
+				struct tagStatus{
+					int iDefaultInitCount;	// 스텟 초기화 디폴트 횟수 
+					int iInitCount;			// 스텟 초기화 가능 횟수 
+				};
+				
+				//lDate와 현재 system의 date가 일치하지 않으면 iDecreseCount = iMaxCount; 초기화 합니다.
+				//Date는 일 단위만 검사합니다.
+				struct tagGonyounPracticeBattle{
+					long lDate;		// 이용횟수를 갱신하기 위한 남은 시간 (sec단위)
+					int  iMaxCount;	// 하루 동안 곤륜대전연습장을 이용할수 있는 횟수 
+					int  iDecreseCount; // 이용 가능 횟수.
+				};
+
+				struct tagWorldChatting{
+					long lDate;
+					int  iMaxCount;
+					int  iDecreaseCount;
+				};
+				
+
+			public:		
+				enum enumMeberShipType			iMemberShipType;
+
+				int								iRemainSecond;
+				struct tagMap					Map[maxmap_number];				
+				struct tagGamble				Gamble;
+				struct tagItemOptionUpgrade		ItemOptionUpgrade;		//아이템 업그레이드
+				struct tagDie					Die;		
+				BOOL							bCreatePremiumBooth;	 // 프리미엄 개인상점 개설가능 여부 
+				int								iMaxLevelItemCraft;		 // 아이템 제조시 나올수 있는 최대 레벨 
+				float							fItemPrecocityTimeRatio; // 아이템 숙성시 추가로 걸리는 시간 증가율
+				BOOL							bItemRecycle;			 // 아이템 리사이클링을 가능 여부				struct tagStatus Status;	
+				struct tagGonyounPracticeBattle GonyounPracticeBattle;
+				struct tagWorldChatting			WorldChatting;//월드 채팅 사용 가능 횟수 (유료회원일경우 - 무한대 0x7fffffff)				
+				struct tagStatus				Status;			
+		};
+
+		struct tagTerra{		
+			public:
+				enum{
+					MaxBytesTLoginName=20,
+				};
+
+			public:
+				char TLoginName[MaxBytesTLoginName+1];
+		};
+
+		
+	public:
+		int				idx;
+		int				active;		// 사용 여부
+		int				isMonitor;	// 모니터용 클라이언트 여부
+		char			id[IDSTRING+1];
+		int				serverGroupID;		// 선택한 서버그룹 ID
+		char			name[SERVERSTRING];
+		int				dataNumber;	//		저장된 캐릭터 데이터 
+		characterData_t	data[MAX_CHARACTER_DATA];
+		characterData_t createData;
+		int				deleteCharacterID;
+		int				dbCheckCharacterName;
+		int				dbCheckAccount;
+		int				dbCheckID;
+		int				isComplete;
+		int				isSuccessLogin;
+ 		i3socket_t		sock;
+		
+		// LTS BILLING 040621
+		char			billMethod[2] ;			// FM for montly user, TB for time point
+		int				billRemain;
+		char			billExpire[12] ;	
+
+		//계정 스토리지 2004-12-03 queen
+		int				m_nCharacterSlotType;
+		struct tm		m_tmDate;
+
+		struct tagIdentification Identify;
+		struct tagPremiumInfo    PremiumInfo;
+		struct tagTerra			 Terra;	
+
+}i3client_t;
+
+
+
+
+
+typedef struct
+{
+	int				idx;
+	int				active;
+
+	char			name[NAMESTRING];
+	char			hostName[HOSTNAMESTRING];	// 추가
+	char			serviceIP[IPSTRING];		
+	int				servicePort;				
+	char			localIP[IPSTRING];		// 추가
+	int				localPort;				// 추가
+
+	int				worldNumber;			
+	int				worldList[MAX_SERVICE_WORLD]; 
+	int				clientNumber;			
+	int				maxClientNumber;		// 추가
+} memberServer_t;
+
+
+typedef struct 
+{
+	int				idx;						
+	int				active;	
+
+	char			name[NAMESTRING];			
+	char			DSN[NAMESTRING];		// 추가
+	int				totalClient;
+	int				maxTotalClient;
+	int				memberServerNumber;
+	memberServer_t	memberServer[MAX_MEMBER_SERVER];
+
+	unsigned int	updateTime;
+	i3socket_t		sock;
+} serverGroup_t;
+
+typedef struct 
+{
+	int					idx;						
+	int					active;
+
+	char				hostName[NAMESTRING];
+	char				serviceIP[IPSTRING];
+	int					servicePort;
+	char				localIP[IPSTRING];
+	int					localPort;
+
+	char 				DSN[NAMESTRING];
+	char				gameVersion[VERSIONSTRING];
+	int					filterYn; 
+	int					clientNumber;
+	int					maxClientNumber;
+// 전체 서버군 동접자수 정보
+	int					concurrentClientNumber;			
+	int					maxConcurrentClientNumber;
+
+	unsigned int		updateTime;
+} masterServer_t;
+
+
+// 함수 선언부
+void GTH_InitMasterServer();
+int GTH_MasterServer();
+
+int GTH_Network_Startup();
+void GTH_Network_Shutdown();
+
+int GTH_FindClientWithAddr(struct sockaddr_in *addr);
+int GTH_IsValidPacketForNewClient(i3packet_t *p);
+
+int GTH_CreateClient(struct sockaddr_in *addr);
+int GTH_RemoveClient(i3client_t *client);
+
+int	GTH_Network_GetMessage(i3socket_t *sock);
+
+void GTH_ConnectMasterServer(void);
+int GTH_DisconnectMasterServer();
+int GTH_AddGameServer(char *svname, char *ip, int port);
+int GTH_RemoveGameServer(char *svname);
+int GTH_FindGameServer(char *svname);
+
+void GTH_RequestLogin(void);
+
+#include "tagMCPacket.h"
+void GTH_ReplyLoginV2(
+		i3client_t* pClient,
+		const BOOL bSUCCESSorFAIL,
+		enum tagMCPaket_MSC_REPLYLOGIN::enumError enumErrorCode);				
+					
+
+
+// [하이코쿤] elfshadow 2005-10-31 11:7 begin
+void GTH_ReplyLogin_Hicocoon(i3client_t* pClient,
+		const BOOL bSUCCESSorFAIL,
+		enum tagMCPaket_MSC_REPLYLOGIN::enumError enumErrorCode);
+
+int GTH_SendMessage_GameServerGroup();
+int GTH_GameServer();
+
+//void GTH_DisplayGameServerGroup();
+void GTH_CheckProblemSocket();
+
+void GTH_Debug_PacketInfo();
+int GTH_ServerGroupInfo();
+int GTH_DropServerGroup();
+
+//---------------------------
+BOOL GTH_RequestGameServerAddr(void);
+int GTH_FindServerWithinGroup(serverGroup_t *group, int worldIdx);
+void GTH_SendGameData( i3client_t *client );
+
+void GTH_RequestGameData();
+
+void GTH_SendMessage_AcceptClient();
+void GTH_SendMessage_RejectClient( int reason );
+
+void GTH_SendMessage_ReliablePing( i3socket_t *sock );
+void GTH_SendMessage_UnreliablePing( i3socket_t *sock );
+
+//----------------------------
+void GTH_RequestReadyCreate();
+int GTH_RequestCreateCharacter();
+void GTH_SendMessage_ReplyCreateCharacter(i3client_t *client, int reply);
+int GTH_RequestDeleteCharacter();
+void GTH_SendMessage_ReplyDeleteCharacter(i3client_t *client, int reply);
+int GTH_RequestCheckCharacterName();
+void GTH_ReplyCheckCharacterName(i3client_t *client, int reply);
+
+
+
+int GTH_AddToServerGroup(int serverGroupIdx, struct sockaddr_in *addr);
+int GTH_GetServerGroupIdx(i3packet_t *p);
+int GTH_FindServerGroupWithAddr(struct sockaddr_in *addr);
+
+
+void GTH_ProcessMessage_Monitor();
+void GTH_Fill_Monitor_ServerInfo(int startIdx) ;
+void GTH_SendMessage_Monitor_ServerInfo( i3client_t *client );
+int GTH_CalculateConcurrentClients();
+int GTH_GetNumberActiveServerGroup();
+int GTH_GetNumberActiveMemberServer(int groupIdx);
+//----------------------------
+// 디버깅 정보
+void GTH_Debug_ServerStatusInfo();
+
+//계정 스토리지 2004-12-03 queen begin
+void GTH_LoadCharacterSlot();
+void GTH_SaveCharacterSlot();
+
+void GTH_SendCharacterLoadSlot(i3client_t *client,int day);
+//계정 스토리지 2004-12-03 queen end
+

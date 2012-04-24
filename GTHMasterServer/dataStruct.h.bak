@@ -1,0 +1,406 @@
+
+#ifndef _DATASTRUCT_H_
+#define _DATASTRUCT_H_
+
+
+////////////////////////// Player Character Data Structure ///////////////////////////////////
+
+#define MAX_AFFECT				5		// 최대 효과의 수
+#define MAX_NUMBER_OF_SKILL		100		// 최대 스킬의 수
+#define	MAX_NUMBER_OF_OWNITEM	125		// 최대 가질 수 있는 아이템의 수, 040205 by SeongKyeong
+//#define	MAX_NUMBER_OF_OWNITEM	120		// 최대 가질 수 있는 아이템의 수
+#define MAX_INVENTORY_SIZE		48		// 인벤토리 크기
+#define MAX_DEPOT_SIZE			42		// 창고의 크기
+#define MAX_EQUIPMENT			14		// 착용 위치의 수
+#define MAX_TRADE_SIZE			30		// 트레이드 창의 크기
+
+// 스킬 관련 스트럭쳐
+#define MAX_NUMBER_OF_SKILL_VARIABLE	20
+
+/*
+typedef struct
+{
+	int		tableIdx;
+	int		level;
+
+	int		calLevel;
+} skill_t;
+*/
+
+
+#define GEN_HALF_NUMBER		4
+
+struct SKILL_GEN_LEVEL
+{
+	char		gen[GEN_HALF_NUMBER];
+};
+
+// skill structure
+typedef struct
+{
+	
+	int			idx;
+	int			tableIdx;
+
+	union
+	{
+		SKILL_GEN_LEVEL		level;
+		DWORD				iLevel;
+	};
+	union
+	{
+		SKILL_GEN_LEVEL		calLevel;
+		DWORD				iCalLevel;
+	};
+
+} skill_t;
+
+
+// 아이템 이름의 최대 길이
+#define	ITEM_NAMESTRING						32	// 20
+// 최대 아이템의 옵션 수
+#define ITEM_OPTION_NUMBER					6
+// 실제 아이템의 스트럭쳐
+typedef struct
+{
+
+	enum
+	{
+		ITEM_T_CHARGE_VALUE =0,
+		//MAX_NUMBER_OF_ITEM_OPTION  = 6,
+		MAX_SIZE_OF_ITEM_SPAWN_DATA = 20,		
+		
+	};
+
+	char			name[ITEM_NAMESTRING];						// 아이템 이름
+	int				itemTableIdx;								// 아이템 테이블 인덱스
+	int				optionNumber;								// 붙은 옵션의 수
+	int				optionIdx[ITEM_OPTION_NUMBER];				// 옵션의 인덱스
+	int				optionValue[ITEM_OPTION_NUMBER];			// 옵션의 값
+	int				durability;									// 내구력
+	int				reqLevel;									// 필요 레벨
+	int				experience;									// 아이템의 경험치
+	int				timer;										// 타이머
+
+	//============================================================================================
+	// 아이템 2차 확장 
+	//============================================================================================
+	struct sItemExtendInfo
+	{	
+		// 아이템 사용 정보 
+		enum enumItemUseFlag
+		{
+				ITEM_USE_FLAG_UN_CHECK		= 1 << 0,				// 디폴트 플레그 
+				ITEM_USE_FLAG_ALLOW_DESTROY	= 1 << 1,				// 파괴 가능 플레그 
+				ITEM_USE_FLAG_ALLOW_REPAIR	= 1 << 2,				// 수리 가능 플레그
+				ITEM_USE_FLAG_PRIMIUM		= 1 << 3,				// 프리미엄 아이템
+				ITEM_USE_FLAG_USE_TIME		= 1 << 4,				// 시간제 아이템 
+				ITEM_USE_FLAG_USE_DATE		= 1 << 5,				// 기간제 아이템 				
+				
+		};
+		
+		// 아이템 스폰 정보 
+		struct sItemSpawnInfoMation
+		{
+			enum enumItemSpawnType
+			{					
+					ITEM_SPAWN_TYPE_UNKNOW		= 0,				// 디폴트 아이템 스폰 플레그 
+					ITEM_SPAWN_TYPE_OLDVER		= 1,				// 1차 아이템 시스템 아이템					
+					ITEM_SPAWN_TYPE_STORE		= 2,				// 상점에 의해 생성 
+					ITEM_SPAWN_TYPE_MONSTER		= 3,				// 몬스터에 의해 생성 
+					ITEM_SPAWN_TYPE_GAMBLE		= 4,				// 겜블에 의해 생성 
+					ITEM_SPAWN_TYPE_PRECOCITY	= 5,				// 숙성에 의해 생성
+					ITEM_SPAWN_TYPE_WEB_POST	= 6,				// 웹을 통한 구입 
+					ITEM_SPAWN_TYPE_CRAFT		= 7,				// 제조를 통해 생성
+					ITEM_SPAWN_TYPE_QUEST		= 8,				// 퀘스트에 의해 생성 					
+			};
+			
+			enum enumItemSpawnType	ItemSpawnType;
+			char data[MAX_SIZE_OF_ITEM_SPAWN_DATA];		
+			
+		};
+		
+		__int64						Serial;							// 시리얼 번호 
+		sItemSpawnInfoMation		ItemSpawnInfomation;			// 아이템 스폰 정보 
+		int							UseFlag;						// 2차 확장에 의해 예약 				
+		
+		// 아이템 사용 가능 시간 (플레그에 의해 변형)
+		// ITEM_USE_FLAG_USE_TIME이면 AllowUseTime, ITEM_USE_FLAG_USE_DATA이면 AllowUseDate사용
+		// -1 이면 무한 사용 , 0이면 파괴, 0 < n 이면 n만큼 사용 		
+		
+		union
+		{
+			int						AllowUseTime;
+			int						AllowUseDate;
+		};		
+		// AllowUseDate에서 남은시간을 계산
+		int							CalclateUseDateToSec;
+	};	
+	sItemExtendInfo					ItemExtendInfo;			
+
+} item_t;
+
+typedef item_t::sItemExtendInfo::sItemSpawnInfoMation	ITEM_SPAWN_INFO;		
+typedef item_t::sItemExtendInfo::enumItemUseFlag		ENUM_ITEM_USE_FLAG;
+
+
+// 퀘스트
+#define MAX_COUNT_QUEST_VARIABLE		200
+struct QUESTVARIABLE
+{
+	char	isComplete;	// 완료 여부
+	char	step;	// quest step
+	short	dummy;	// 현재 사용하지 않음
+};
+
+typedef struct
+{
+	union
+	{
+		DWORD				iVar;
+		QUESTVARIABLE		var;
+	};
+} questVariable_t;
+
+
+#define MAX_COUNT_QUEST_INVENTORY		24
+struct QUESTINVENTORY
+{
+	short	itemIdx;		// -1이면 없음
+	byte	maxItemCount;	// 최대 얻을 수 있는 item 개수
+	byte	curItemCount;	// 현재 아이템의 개수
+};
+
+typedef struct
+{
+	union
+	{
+		DWORD				iItem;
+		QUESTINVENTORY		item;
+	};
+		
+} questInventory_t;
+
+
+#define MAX_COUNT_QUEST_STATUS		5
+#define MAX_COUNT_QUEST_STATUS_DYNAMIC_FIELD	10
+typedef struct
+{
+	int	idx;		// quest 
+	int	questIdx;		// 진행중인 quest의 index
+
+	// random quest를 위한 dynamic field
+	int	dField[MAX_COUNT_QUEST_STATUS_DYNAMIC_FIELD];
+
+	char	partyOrganizerName[NAMESTRING];	// 파티 퀘스트일 경우 파티 정보 저장
+	int	partyOrganizeServer;	// 생성된 서버
+	int	partyOrganizeTime;		// 생성 시간
+
+	int	clearTime;		// 진행 시간
+	int	limitTime;		// 한계 시간
+
+} questStatus_t;
+
+
+typedef float   vec3_t[3];
+
+#define GEN_NUMBER					8
+#define DEFAULT_SKINPART_NUMBER		4
+
+// 2003-06-13 동규
+#define MAX_NUMBER_OF_HOTKEY	32
+// 2000 이상 ITEM, 1000 이상 ACTION, 1000 이하 스킬
+#define MASK_HOTKEY_ACTION		1000	
+#define MASK_HOTKEY_ITEM		2000	
+
+// 아이템 숙성관련
+#define MAX_PRECOCITY_SIZE		6
+
+typedef struct
+{
+	int					characterID;	// DB에 저장된 번호 ( 0 ~ 2)
+
+	char				name[NAMESTRING];		// 이름 - 서버내에서 unique 처리
+	int					pcClass;		// 태생/자생/신생/보패 선인 분류
+	int					pcJob;			// 전직
+	int					skinPart[DEFAULT_SKINPART_NUMBER];
+	int					age;			// 나이 ( 0 ~ 100)
+
+	char				rank[NAMESTRING];		// 칭호 
+	int					rankPoint;				// 명성 포인트 (0 ~ 200)
+
+	// 위치 관련
+	int					worldIdx;		// 월드 인덱스 - BSP번호 (0 ~ 100)
+	vec3_t				position;		// 위치 (x, y, z)
+	vec3_t				angles;			// 각도 (pitch, yaw, roll)
+	
+	// 경험치 관련
+	int					level;					// 레벨 ( 1 ~ 99 + 12단계 )
+	__int64				exp;					// 현재 경험치 ( 0 ~ 99999999999)
+	int					increaseExpRate;		// 몬스터의 경험치를 받는 양, 보통은 1.0(100%)이다
+
+	// 젠
+	int					selectedGen;					// 현재 선택한 gen
+	int					genLevel;
+	__int64				genExp;
+	int					nextGenExp;
+	int					increaseGenExpRate;
+	int					genCapability[GEN_NUMBER];			// -1이면 비활성 상태, 자신의 젠일 경우 초기값은 1 이외는 -1
+	int					genCrossStep;					// 현재 젠 cross 단계(활성화된 젠의 개수)
+
+	// 스텟 관련
+	int					force; 			// 힘    ( 0 ~ 999)
+	int					soulpower;		// 영력  ( 0 ~ 999)
+	int					agility; 		// 민첩성
+	int					vitality;		// 건강
+
+	int					bonusStatusPoint;	//  보너스 스텟 포인트 (0 ~ 9999)
+
+	// 에너지, 어빌리티 관련
+	int					curRA;				// 현재 RA의 양 ( 0 ~ 20000)
+	int					curSA;				// 현재 SA의 양 ( 0 ~ 20000)
+
+	// 2003-01-08 : 종남
+	int					curChargeNSE;		// 현재 NSE 저장량
+	int					curChargeSE;		// 현재 SE 저장량 
+	int					curChargeRA;		// 현재 RA 저장량 
+	int					curChargeSA;		// 현재 SA 저장량 
+	int					depotSE;			// 저축된 SE
+
+	// 2003-01-23 동규
+	int					curWeapon;
+	// 2003-02-15 동규
+	int					bindingIdx;				// 시작시점 테이블 인덱스
+
+	// 스킬
+	int					skillNumber;				// 스킬 수
+	skill_t				skill[MAX_NUMBER_OF_SKILL];	// 스킬
+	int					bonusSkillPoint;
+	int					skillVariable[MAX_NUMBER_OF_SKILL_VARIABLE];
+
+	// 아이템 & 인벤토리
+	item_t				item[MAX_NUMBER_OF_OWNITEM];
+	int					itemNumber;
+	int					inventory[MAX_INVENTORY_SIZE];
+	int					depot[MAX_DEPOT_SIZE];
+	int					equipment[MAX_EQUIPMENT];
+	int					mouseInventory;
+
+	// hot key
+	int					hotkeyType[MAX_NUMBER_OF_HOTKEY];
+	int					hotkeyIdx[MAX_NUMBER_OF_HOTKEY];
+
+	// 퀘스트
+	questVariable_t		questVar[MAX_COUNT_QUEST_VARIABLE];
+	questInventory_t	questInventory[MAX_COUNT_QUEST_INVENTORY];
+	questStatus_t		questStatus[MAX_COUNT_QUEST_STATUS];
+	int					questNumber;		// 퀘스트 상태 개수
+	int					questPoint;
+
+	// 숙성, 아이템 제조, 업그레이드, 개인상점
+	int					precocityTime[MAX_PRECOCITY_SIZE];
+	int					precocityInventory[MAX_PRECOCITY_SIZE];
+
+	// 2004-04-13 15:1, Jongnam
+	// 카오수치
+	int					chaosPoint;
+	// (yellow 2004-04-07 15:52)
+	// 단관련 정보...
+	int					guildIdx;
+	unsigned int		guildJoinTime; // 단 가입 시간
+	unsigned int		guildSecedeTime; // 단 탈퇴 시간
+
+} characterData_t;
+
+// 2003-01-14
+#define NUM_TABLE_GEN_TYPE			8
+#define DEFAULT_SKIN_PART_NUMBER	4
+typedef struct
+{
+	int					characterID;
+	int					pcClass;
+	
+	int					skinPart[DEFAULT_SKIN_PART_NUMBER];
+	char				name[NAMESTRING];
+	// 스텟 관련
+	int					force; 			// 힘
+	int					soulpower;		// 영력
+	int					agility; 		// 민첩성
+	int					vitality;		// 건강
+
+	int					bonusPoint;
+
+	item_t				defaultItem;
+} charEditData_t;
+
+
+
+typedef struct
+{
+	// 일반 데이터
+	char				name[NAMESTRING];		// 이름 - 서버내에서 unique 처리
+	int					pcClass;		// 태생/자생/신생/보패 선인 분류
+	int					pcJob;
+	int					skinPart[DEFAULT_SKINPART_NUMBER];
+	int					age;			// 나이 ( 0 ~ 100)
+
+	char				rank[NAMESTRING];		// 칭호 
+	int					rankPoint;				// 명성 포인트 (0 ~ 200)
+
+	// 위치 관련
+	int					worldIdx;		// 처음 시작 월드
+	vec3_t				position;		// 위치 (x, y, z)
+	vec3_t				angles;			// 각도 (pitch, yaw, roll)
+	
+	// 경험치 관련
+	int					level;					// 레벨 ( 1 ~ 99 + 12단계 )'
+	__int64				exp;					// 현재 경험치 ( 0 ~ 99999999999)
+	int					increaseExpRate;		// 몬스터의 경험치를 받는 양, 보통은 1.0(100%)이다
+
+	int					selectedGen;					// 현재 선택한 gen
+	int					genLevel;			// 속성별 레벨 ( 1 ~ 50 )
+	__int64				genExp;				// 속성별 경험치 ( 0 ~ 99999999999)
+	int					increaseGenExpRate;	// 몬스터의 경험치를 받는 양, 보통은 1.0(100%)이다
+	int					genCapability[GEN_NUMBER];	// -1이면 비활성 상태, 자신의 젠일 경우 초기값은 1 이외는 -1
+
+	// 스텟 관련
+	int					force; 			// 힘    ( 0 ~ 999)
+	int					soulpower;		// 영력  ( 0 ~ 999)
+	int					agility; 		// 민첩성
+	int					vitality;		// 건강
+	int					bonusStatusPoint;	//  보너스 스텟 포인트 (0 ~ 9999)
+
+	// 에너지, 어빌리티 관련
+	int					curRA;				// 현재 RA의 양 ( 0 ~ 20000)
+	int					curSA;				// 현재 SA의 양 ( 0 ~ 20000)
+
+	// 2003-01-08 : 종남
+	int					curChargeNSE;		// 현재 NSE 저장량
+	int					curChargeSE;		// 현재 SE 저장량 
+	int					curChargeRA;		// 현재 RA 저장량 
+	int					curChargeSA;		// 현재 SA 저장량 
+
+	// 2003-02-15 동규
+	int					bindingIdx;				// 시작시점 테이블 인덱스
+
+	// 스킬
+	int					skillNumber;				// 스킬 수
+	skill_t				skill[MAX_NUMBER_OF_SKILL];	// 스킬
+	int					bonusSkillPoint;
+
+	// 아이템 & 인벤토리
+	item_t				item[MAX_NUMBER_OF_OWNITEM];
+	int					itemNumber;
+	int					inventory[MAX_INVENTORY_SIZE];
+	int					depot[MAX_DEPOT_SIZE];
+	int					equipment[MAX_EQUIPMENT];
+	int					mouseInventory;
+
+	// hot key
+	int					hotkeyType[MAX_NUMBER_OF_HOTKEY];
+	int					hotkeyIdx[MAX_NUMBER_OF_HOTKEY];
+	
+} characterTable_t;
+
+
+#endif

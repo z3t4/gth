@@ -1,0 +1,2029 @@
+"" 30440, 31962
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/*┏━ File Description ━┓ */ 
+
+/*┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ */ 
+
+/*┃ Name : Common.h                                                                      ┃ */ 
+
+/*┃ Creator : D.W. Kim                                                                   ┃ */ 
+
+/*┃ Description : common header                                                          ┃ */ 
+
+/*┃ History :                                                                            ┃ */ 
+
+/*┃     2002-07-26  파일 생성                                                            ┃ */ 
+
+/*┃ Note :                                                                               ┃ */ 
+
+/*┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ */ 
+
+#ifndef	_COMMON_H_JF02J3PPW02990U3042
+
+#define	_COMMON_H_JF02J3PPW02990U3042
+
+
+
+#include <windows.h>
+
+#include <basetsd.h>
+
+#include <math.h>
+
+#include <stdio.h>
+
+#include <D3DX8.h>
+
+#include <DXErr8.h>
+
+#include <tchar.h>
+
+
+
+#include "../common/D3DApp.h"
+
+#include "../common/D3DUtil.h"
+
+#include "../common/DXUtil.h"
+
+#include "../resource.h"
+
+
+
+/*┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ */ 
+
+/*┃ Definitions & Macros                                                                 ┃ */ 
+
+/*┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ */ 
+
+
+
+#include "ObjectDefs.h"
+
+#include "FX_Etcs/RenderRelated.h"
+
+
+
+	/* maximum values */ 
+
+#define		MAX_CHAR_A_SCENE			50			/* 한 캐릭터의 범위 내에 있을 수 있는 캐릭터의 최대값 */ 
+
+
+
+#define		MAX_CREATURE_A_SCENE		50
+
+
+
+#define		MAX_COUNT_BONE_IN_CHAR		50			/* keyframe 속의 bone 의 최대값 */	
+
+
+
+#define		MAX_COUNT_SKEL				200			/* skeleton resource 의 최대값 */	/* 2003-02-07 : 수정 */ 
+
+
+
+#define		MAX_COUNT_ANIM_VER100		200			/* 2003-03-10 : 이전 버전의 값 */ 
+
+#define		MAX_COUNT_ANIM_VER110		500			// 2003-06-25 : 종남
+
+	
+
+#define		FILESIZE_LOOKUP_VER100		140000
+
+#define		FILESIZE_LOOKUP_VER110		150000
+
+
+
+#define		MAX_COUNT_ANIM				2000		/* animation resource 의 최대값 */ 
+
+#define		MAX_COUNT_SKIN_MESH			400			/* skinning mesh resource 의 최대값 */ 
+
+#define		MAX_COUNT_ITEM_MESH			400			/* item mesh resource 의 최대값 */ 
+
+#define		MAX_COUNT_TEXTURE			800			/* texture resource 의 최대값 */ 
+
+#define		MAX_COUNT_CHAR_PER_ITEM		100			/* 하나의 mesh 가 한 frame 에서 반복적으로 그려질 수 있는 최대값 */ 
+
+#define		MAX_COUNT_AVAIL_ITEM		200			/* 한 frame 에서 등장하는 item(or skin)의 최대값. 이것은 위의 resource 값과 같을 것 같다. */ 
+
+	
+
+#define		MAX_COUNT_BONE				150			/* bone 의 종류 (ex, root, spine1, spine2, ...) */ /* 2003-02-07 : 수정 */ 
+
+#define		MAX_COUNT_EFFECT_TEXTURE	50			/* 2003-01-11 : character system 의 effect 에 사용될 수 있는 shader 이름의 최대 개수 */ /* 2003-02-07 : 수정 */ 
+
+
+
+#define		RESOURCE_VERSION_VALUE			101
+
+#define		RESOURCE_VERSION_TEXT			"101"
+
+
+
+	/* file name & path */ 
+
+#define		FILE_BASE					_T("./")
+
+
+
+#define		FILENAME_BASE				_T("listdata/")
+
+#define		FILENAME_SKEL_LIST			FILENAME_BASE	_T("SkelList.fxd")
+
+#define		FILENAME_ANIM_LIST			FILENAME_BASE	_T("AnimList.fxd")
+
+#define		FILENAME_ITEM_LIST			FILENAME_BASE	_T("ItemList.fxd")
+
+#define		FILENAME_SKIN_LIST			FILENAME_BASE	_T("SkinList.fxd")
+
+#define		FILENAME_TEX_LIST			FILENAME_BASE	_T("TexList.fxd")
+
+#define		FILENAME_AURA_LIST			FILENAME_BASE	_T("AuraList.fxd")
+
+#define		FILENAME_SKINITEM_LIST		FILENAME_BASE	_T("ItemForSkin.fxd")
+
+#define		FILENAME_OBJCLASS_LIST		FILENAME_BASE	_T("ObjClassList.fxd")
+
+#define		FILENAME_EFFECT_TEX_LIST	FILENAME_BASE	_T("effect_texture.fxd")
+
+
+
+#define		FILENAME_SKIN_HAIR			FILENAME_BASE	_T("SkinHairList.fxd")
+
+#define		FILENAME_SKIN_HEAD			FILENAME_BASE	_T("SkinHeadList.fxd")
+
+#define		FILENAME_SKIN_UPPER			FILENAME_BASE	_T("SkinUpperList.fxd")
+
+#define		FILENAME_SKIN_LOWER			FILENAME_BASE	_T("SkinLowerList.fxd")
+
+#define		FILENAME_SKIN_HAND			FILENAME_BASE	_T("SkinHandList.fxd")
+
+#define		FILENAME_SKIN_LEG			FILENAME_BASE	_T("SkinLegList.fxd")
+
+#define		FILENAME_SKIN_FOOT			FILENAME_BASE	_T("SkinFootList.fxd")
+
+#define		FILENAME_SKIN_MONSTER		FILENAME_BASE	_T("SkinMonsterList.fxd")
+
+	
+
+#define		INTERNAL_INFO				_T("internal_infos/")
+
+#define		FILENAME_TAGLIST			INTERNAL_INFO	_T("TagListExt_")	RESOURCE_VERSION_TEXT	_T(".dat")
+
+#define		FILENAME_MESHLIST			INTERNAL_INFO	_T("MeshListExt.dat")
+
+#define		FILENAME_BONELIST			INTERNAL_INFO	_T("BoneListExt.dat")
+
+#define		FILENAME_CHARTABLE			INTERNAL_INFO	_T("CharLookupTable.bdt")
+
+#define		FILENAME_SIN_TABLE			INTERNAL_INFO	_T("fsintbl.bdt")
+
+#define		FILENAME_COS_TABLE			INTERNAL_INFO	_T("fcostbl.bdt")
+
+#define		FILENAME_ATTACKMOTION_INFO	INTERNAL_INFO	_T("AttackMotionInfo.dat")
+
+
+
+#define		FILENAME_SKINDFT_LIST		_T("defaultchar.cfg")			/* 추가. default char skin list */ 
+
+
+
+	/* for animation.cpp */ 
+
+#define		FX_ANIM_ERROR			0.0001f
+
+
+
+	/* for skinning renderer */ 
+
+#define		VERTEX_BUFFER_SIZE			3500
+
+#define		INDEX_BUFFER_SIZE			10500
+
+
+
+#define		MAX_NUM_STATIC_EFFECT		10				/* 고정 effect 의 index 를 저장하는 최대 개수 */ 
+
+
+
+	/* for aura renderer */ 
+
+#define		SIZE_PREVB_AURA		3000
+
+#define		SIZE_PREIB_AURA		6000
+
+
+
+#ifdef	_FXSKELDRAW
+
+#	define		SIZE_VB_SKEL_RENDER		400
+
+#	define		SIZE_IB_SKEL_RENDER		36
+
+#endif
+
+
+
+#define		GTH_CHAR_FORMAT			( GTH_FORMAT_XYZ | GTH_FORMAT_NORMAL | GTH_FORMAT_TEXVERTEX( 1 ) )
+
+#define		GTH_AURA_FORMAT			( GTH_FORMAT_XYZ | GTH_FORMAT_DIFFUSE | GTH_FORMAT_TEXVERTEX( 1 ) )
+
+#ifdef	_FXSKELDRAW
+
+#	define		GTH_SKEL_FORMAT		( GTH_FORMAT_XYZ | GTH_FORMAT_NORMAL )
+
+#endif
+
+#define		FX_DEFAULT_SKIN_PART_NUMBER	4
+
+
+
+#define		FX_MAX_EQUIPMENT_NUMBER		7
+
+
+
+#define		NUM_GEN_LOOKUPS		8			/* pc lookup table 의 최대값 */ 
+
+#define		NUM_MON_LOOKUPS		200			/* monster lookup table 의 최대값 */ 
+
+
+
+#define		SIZE_BONENAME			32
+
+#define		MAX_CHILDBONE			8
+
+#define		MAX_ROOTBONE_ID			8
+
+#define		MAX_TAG					35
+
+
+
+#define		MAX_AURA_IN_CHAR		6
+
+#define		AURA_MAX_DIVIDE			10
+
+#define		AURA_NUM_DIVIDE			4		/* 임시값. update 시간에 따라 달라져야 함. */ 
+
+#define		AURA_UPDATE_TIME		0.05f
+
+
+
+#define		ANIM_FRAME_ERROR_VALUE	9999999.9f
+
+
+
+#define		COMBO_DAMAGE_REQUEST_FRAME_OFFSET	5		/* damage 를 요청하는 frame 은 damage 표시 frame - X 로 정해지는데 이 때 X 값은 고정이다. 이 X 값을 나타내는 상수 */ 
+
+
+
+/*┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ */ 
+
+/*┃ Structures                                                                           ┃ */ 
+
+/*┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ */ 
+
+
+
+const	float	INTERPOLATE_FRACTION			=	0.4f;
+
+
+
+/* monster 의 상태 Fx_CHARACTER_t.stat_alive */ 
+
+enum
+
+{
+
+	MON_ALIVE_STATE_SPAWN		= 0,
+
+	MON_ALIVE_STATE_NORMAL,
+
+	MON_ALIVE_STATE_CORPSE,
+
+	MON_ALIVE_STATE_DISAPPEAR,
+
+	MON_ALIVE_STATE_DIE,
+
+	MON_ALIVE_STATE_FADE,
+
+};
+
+
+
+enum
+
+{
+
+	CHAR_ATTACK_PREPARE	=	0,
+
+	CHAR_ATTACK_ENABLE,
+
+	CHAR_ATTACK_DISABLE,
+
+
+
+	CHAR_ATTACK_FORCEDWORD	=	0x7fffffff
+
+};
+
+
+
+#define		CHAR_ATTACK_SUCCEED		true
+
+#define		CHAR_ATTACK_FAILED		false
+
+
+
+enum
+
+{
+
+	CHAR_SOUND_ENABLE,
+
+	CHAR_SOUND_DISABLE,
+
+
+
+	CHAR_SOUND_FORCEDWORD	=	0x7fffffff
+
+};
+
+
+
+enum
+
+{
+
+	/* shader effect for character system  */ 
+
+	CHAR_SHADER_AURA_1	=	0,
+
+	CHAR_SHADER_AURA_2,
+
+	CHAR_SHADER_AURA_3,
+
+	CHAR_SHADER_AURA_4,
+
+	CHAR_SHADER_CHAR_SELECT_NORMAL,
+
+	CHAR_SHADER_CHAR_SELECT_HOSTILE,
+
+	CHAR_SHADER_CHAR_SELECT_3,
+
+	CHAR_SHADER_CHAR_SELECT_4,
+
+	CHAR_SHADER_ITEM_SELECT_1,
+
+	CHAR_SHADER_ITEM_SELECT_2,
+
+	CHAR_SHADER_ITEM_SELECT_3,
+
+	CHAR_SHADER_ITEM_SELECT_4,
+
+	CHAR_SHADER_MONSTER_DEAD_1,
+
+	
+
+	CHAR_SHADER_FORCEDWORD		=	0x7fffffff	
+
+};
+
+
+
+enum
+
+{	/* interpolate options */ 
+
+	INTERPOLATE_NORMAL			=	0,
+
+	INTERPOLATE_USE_CURFRAME,
+
+	INTERPOLATE_USE_EOA,
+
+
+
+	INTERPOLATE_FORCEDWORD		=	0x7fffffff
+
+};
+
+
+
+enum
+
+{	/* animation options */ 
+
+	ANIMOPTION_NORMAL			=	0,
+
+	ANIMOPTION_START_NEW_ANIM,
+
+	ANIMOPTION_COMBO_ATTACK,
+
+	ANIMOPTION_START_ATTACK,
+
+	ANIMOPTION_ACCELERATE_ANIM,			/* 미사용 */ 
+
+
+
+	ANIMOPTION_FORCEDWORD		=	0x7fffffff
+
+};
+
+
+
+	/* FX_CAnim::CheckKeyframeState() 에서 사용되는 option 과 반환값 */ 
+
+enum
+
+{	ANIMCHECK_NORMAL,
+
+	ANIMCHECK_EOP,
+
+	ANIMCHECK_EOA,
+
+	ANIMCHECK_RESULT_NORMAL,
+
+	ANIMCHECK_RESULT_END,
+
+	ANIMCHECK_RESULT_EOP,
+
+	ANIMCHECK_RESULT_EOA,
+
+
+
+	ANIMCHECK_FORCEDWORD		=	0x7fffffff
+
+};
+
+
+
+	/* skinning part ID */ 
+
+enum
+
+{
+
+	SKIN_PART_HAIR,
+
+	SKIN_PART_HEAD,
+
+	SKIN_PART_UPPER,
+
+	SKIN_PART_LOWER,
+
+	SKIN_PART_HAND,
+
+	SKIN_PART_LEG,
+
+	SKIN_PART_FOOT,
+
+	SKIN_PART_MONSTER,
+
+	MAX_COUNT_SKIN_PART,
+
+	SKIN_PART_FORCEDWORD		=	0x7fffffff
+
+};
+
+
+
+	/* non skinning(item) part ID */ 
+
+enum
+
+{
+
+	ITEM_PART_OVERHEAD_FAR,			//	0
+
+	ITEM_PART_OVERHEAD_NEAR,		//	1
+
+	ITEM_PART_ARM_R,				//	2
+
+	ITEM_PART_ARM_L,				//	3
+
+	ITEM_PART_NECK,					//	4
+
+	ITEM_PART_BODY,					//	5
+
+	ITEM_PART_HAND_R,				//	6
+
+	ITEM_PART_HAND_L,				//	7
+
+	ITEM_PART_BACKHAND_R,			//	8
+
+	ITEM_PART_BACKHAND_L,			//	9
+
+	ITEM_PART_KNEE_R,				//	10
+
+	ITEM_PART_KNEE_L,				//	11
+
+	ITEM_PART_MIDDLEAIR_R,			//	12
+
+	ITEM_PART_MIDDLEAIR_L,			//	13
+
+	ITEM_PART_WAIST,				//	14
+
+	ITEM_PART_SHOULDER,				//	15
+
+	ITEM_PART_BACK,					//	16
+
+	ITEM_PART_WAIST_R,				//	17
+
+	ITEM_PART_WAIST_L,				//	18
+
+	ITEM_PART_ELBOW_R,				//	19
+
+	ITEM_PART_ELBOW_L,				//	20
+
+	ITEM_PART_HAIR,					//	21
+
+	ITEM_PART_HEAD,					//	22
+
+	ITEM_PART_FACE,					//	23
+
+	ITEM_PART_TRANS,				//	24
+
+	ITEM_PART_GROUNDAIR_R,			//	25
+
+	ITEM_PART_GROUNDAIR_L,			//	26
+
+	ITEM_PART_GROUND,				//	27
+
+	ITEM_PART_RESERVED,				//	28
+
+	ITEM_PART_CREATURE_TYPE_0,		//	29	: 등에 태우는 영수
+
+	ITEM_PART_CREATURE_TYPE_1,		//	30	: 목에 태우는 영수
+
+	ITEM_PART_CREATURE_TYPE_2,		//	31
+
+	ITEM_PART_CREATURE_TYPE_3,		//	32
+
+	ITEM_PART_CREATURE_TYPE_4,		//	33
+
+	MAX_COUNT_ITEM_PART,
+
+	ITEM_PART_FORCEDWORD		=	0x7fffffff
+
+};
+
+
+
+typedef enum
+
+{
+
+	FX_ANIM_GROUP_NULL	=	-1,
+
+	FX_ANIM_GROUP_MOVE	=	0,
+
+	FX_ANIM_GROUP_BASIC,
+
+	FX_ANIM_GROUP_ATTACK,
+
+	FX_ANIM_GROUP_DEFENSE,
+
+	FX_ANIM_GROUP_MAGIC,
+
+	FX_ANIM_GROUP_SOCIAL,
+
+
+
+	FX_ANIM_GROUP_FORCEDWORD	=	0x7fffffff
+
+}	Fx_ANIM_GROUP_t, *Fx_ANIM_GROUP_pt;
+
+
+
+typedef union
+
+{
+
+	struct
+
+	{
+
+		unsigned	changable	:1;
+
+		unsigned	repeatable	:1;
+
+		unsigned	movable		:1;
+
+		unsigned	alive		:1;
+
+	}		type;
+
+	DWORD	value;
+
+
+
+}	Fx_ANIM_STATE_t, *Fx_ANIM_STATE_pt;
+
+
+
+typedef struct
+
+{
+
+	
+
+	int					groupID;
+
+	Fx_ANIM_STATE_t		state;
+
+
+
+} Fx_ANIM_INFO_t, *Fx_ANIM_INFO_pt;
+
+
+
+	/* CHAR_BUFFER_t : mesh 에 사용되는 indexing 을 위한 buffer */ 
+
+struct	Fx_CHARACTER_t;
+
+
+
+typedef struct
+
+{
+
+	int				meshID;
+
+	int				count;
+
+	Fx_CHARACTER_t	*characterPtr[ MAX_COUNT_CHAR_PER_ITEM ];
+
+	int				tagID[ MAX_COUNT_CHAR_PER_ITEM ];
+
+	int				parentTagID[ MAX_COUNT_CHAR_PER_ITEM ];
+
+} CHAR_BUFFER_t;
+
+
+
+enum
+
+{
+
+	GEN_TYPE_SPIRIT	=	0,
+
+	GEN_TYPE_WIND,
+
+	GEN_TYPE_WATER,
+
+	GEN_TYPE_SOIL,
+
+	GEN_TYPE_POISON,
+
+	GEN_TYPE_IRON,
+
+	GEN_TYPE_FIRE,
+
+	GEN_TYPE_BODY,
+
+	NUM_GEN_TYPE,
+
+};
+
+
+
+	/* class pre-definition */ 
+
+class	FX_CCharManager;
+
+class	FX_CSkinManager;
+
+class	FX_CSkelManager;
+
+class	FX_CAnimManager;
+
+class	FX_CItemManager;
+
+class	FX_CAuraManager;
+
+class	FX_CCharLookupMng;
+
+class	FX_CCharShaderMng;
+
+
+
+class	FX_CItemRenderer;
+
+class	FX_CSkinRenderer;
+
+class	FX_CAuraRenderer;
+
+class	FX_CAnim;
+
+class	FX_CMesh;
+
+class	FX_CSkel;
+
+
+
+class	CTagManager;
+
+class	CMeshManager;
+
+class	CBoneManager;
+
+
+
+typedef enum
+
+{
+
+	SKIN_HAIR	=	0x00,
+
+	SKIN_HEAD,
+
+	SKIN_UPPER,
+
+	SKIN_LOWER,
+
+	SKIN_HAND,
+
+	SKIN_LEG,
+
+	SKIN_FOOT,
+
+	SKIN_MONSTER,
+
+
+
+	ITEM_OVERHEAD	=	0x10,
+
+	ITEM_ARMOR,
+
+	ITEM_AIR,
+
+	ITEM_WEAPON,
+
+
+
+	TYPE_DONTCARE	=	-1,
+
+	FORCEDWORD	=	0x7fffffff
+
+
+
+}	MESHTYPE_t,	*MESHTYPE_pt;
+
+
+
+/* mesh info */ 
+
+typedef struct
+
+{
+
+	union
+
+	{
+
+		struct
+
+		{
+
+			unsigned	spirit	:1;
+
+			unsigned	wind	:1;
+
+			unsigned	water	:1;
+
+			unsigned	soil	:1;
+
+			unsigned	poison	:1;
+
+			unsigned	iron	:1;
+
+			unsigned	fire	:1;
+
+			unsigned	body	:1;
+
+			unsigned			:0;
+
+		}	bit;
+
+		unsigned int	value;
+
+	}	gen;
+
+
+
+	MESHTYPE_t	type;
+
+
+
+}	MESHINFO_t,	*MESHINFO_pt;
+
+
+
+	/* mesh info */ 
+
+typedef struct
+
+{
+
+	char		desc [256];
+
+	MESHINFO_t	meshinfo;
+
+}	MESH_FILEINFO;
+
+
+
+typedef struct
+
+{
+
+	int		sub [4];
+
+}	FX_BONESTRUCT_ID;
+
+
+
+	/* buffer structure */ 
+
+typedef struct
+
+{
+
+	int		vertexCount;
+
+	int		ibStart;
+
+	int		ibNumber;
+
+	int		vbStart;
+
+	int		vbNumber;
+
+}	FX_BUFFERINDEX_t;
+
+
+
+	/* 2002-12-21 : 아이템에 따른 캐릭터 애니메이션 종류 */ 
+
+enum
+
+{
+
+	ANIM_ITEM_IDLE			= 0,
+
+	ANIM_ITEM_WALK,
+
+	ANIM_ITEM_WALK_BACK,
+
+	ANIM_ITEM_WALK_LEFT,
+
+	ANIM_ITEM_WALK_RIGHT,
+
+	ANIM_ITEM_RUN,
+
+	ANIM_ITEM_PRE_ATTACK,
+
+	ANIM_ITEM_ATTACK_0,
+
+	ANIM_ITEM_ATTACK_1,
+
+	ANIM_ITEM_ATTACK_2,
+
+	ANIM_ITEM_ATTACK_3,					/* 10 */ 
+
+	ANIM_ITEM_ATTACK_4,
+
+	ANIM_ITEM_DEFENSE,
+
+	ANIM_ITEM_AVOID,
+
+	ANIM_ITEM_RECOVERY,
+
+	ANIM_ITEM_ATTACKED_0,
+
+	ANIM_ITEM_ATTACKED_1,
+
+	ANIM_ITEM_DEAD_0,
+
+	ANIM_ITEM_DEAD_1,
+
+	ANIM_ITEM_DYING_0,
+
+	ANIM_ITEM_DYING_1,					/* 20 */ 
+
+	ANIM_ITEM_FLY,
+
+	ANIM_ITEM_SIT,
+
+	ANIM_ITEM_STAND,
+
+	ANIM_ITEM_LIE,
+
+	ANIM_ITEM_EVENT,
+
+	ANIM_ITEM_SOCIAL,
+
+	ANIM_ITEM_JUMP,
+
+	ANIM_ITEM_SIT_IDLE,
+
+	ANIM_ITEM_SKILLCASTING,
+
+	ANIM_ITEM_CASTINGIDLE,				/* 30 */ 
+
+
+
+	ANIM_ITEM_SOCIAL_BOW,
+
+	ANIM_ITEM_SOCIAL_SHOUT,	
+
+
+
+/*
+
+// (vemer 2004-06-17 11:29)
+
+	ANIM_ITEM_CREATURE_IDLE,
+
+	ANIM_ITEM_CREATURE_WALK,
+
+	ANIM_ITEM_CREATURE_RUN,
+
+	ANIM_ITEM_CREATURE_PRE_ATTACK,
+
+	ANIM_ITEM_CREATURE_ATTACK_0,
+
+	ANIM_ITEM_CREATURE_ATTACK_1,
+
+	ANIM_ITEM_CREATURE_ATTACK_2,
+
+	ANIM_ITEM_CREATURE_ATTACK_3,
+
+	ANIM_ITEM_CREATURE_ATTACKED_0,
+
+	ANIM_ITEM_CREATURE_ATTACKED_1,		// 40
+
+	ANIM_ITEM_CREATURE_DEAD_0,
+
+	ANIM_ITEM_CREATURE_DEAD_1,
+
+	ANIM_ITEM_CREATURE_DYING_0,
+
+	ANIM_ITEM_CREATURE_DYING_1,
+
+	ANIM_ITEM_CREATURE_SIT,
+
+	ANIM_ITEM_CREATURE_SIT_IDLE,
+
+	ANIM_ITEM_CREATURE_STAND,
+
+	ANIM_ITEM_CREATURE_SKILLCASTING,
+
+	ANIM_ITEM_CREATURE_CASTINGIDLE,		// 49 : maximum. 만약 이 이상 animation 종류를 늘려야 할 경우가 생기면 아래 max 값을 
+
+*/
+
+										/*		늘림과 동시에 해당되는 모든 부분을 수정해야 함 */ 
+
+	
+
+	MAX_ANIMCOUNT_TYPE		= 50,
+
+};
+
+
+
+	/* 일반 캐릭터 애니메이션 종류 */ 
+
+enum
+
+{
+
+	ANIM_COMMON_COMMON_0		= 0,
+
+	ANIM_COMMON_COMMON_1,
+
+	ANIM_COMMON_COMMON_2,
+
+	ANIM_COMMON_COMMON_3,
+
+	ANIM_COMMON_COMMON_4,
+
+	ANIM_COMMON_COMMON_5,
+
+	ANIM_COMMON_COMMON_6,
+
+	ANIM_COMMON_COMMON_7,
+
+	ANIM_COMMON_COMMON_8,
+
+	ANIM_COMMON_COMMON_9,
+
+
+
+	MAX_ANIMCOUNT_COMMON	= 100
+
+};
+
+
+
+	/* 스킬에 따른 애니메이션 종류 */ 
+
+enum
+
+{
+
+	ANIM_SKILL_SKILL_0	=	0,
+
+	ANIM_SKILL_SKILL_1,
+
+	ANIM_SKILL_SKILL_2,
+
+	ANIM_SKILL_SKILL_3,
+
+	ANIM_SKILL_SKILL_4,
+
+	ANIM_SKILL_SKILL_5,
+
+	ANIM_SKILL_SKILL_6,
+
+	ANIM_SKILL_SKILL_7,
+
+	ANIM_SKILL_SKILL_8,
+
+	ANIM_SKILL_SKILL_9,
+
+	
+
+	MAX_ANIMCOUNT_SKILL	= 200,
+
+};
+
+
+
+	/* 아이템 애니메이션 구조체 */ 
+
+typedef struct
+
+{
+
+	int		anim_type [MAX_ANIMCOUNT_TYPE];
+
+	char	desc[256];
+
+}	ANIM_t;
+
+
+
+	/* 무기에 따른 애니메이션 분류의 최대 개수 */ 
+
+#define	MAX_ANIMCOUNT_ITEM		10
+
+
+
+	/* 애니메이션 셋 */ 
+
+typedef struct
+
+{
+
+	ANIM_t		anim_item	[MAX_ANIMCOUNT_ITEM];
+
+	int			anim_common [MAX_ANIMCOUNT_COMMON];
+
+	char		commonDesc[256];
+
+	int			anim_skill	[MAX_ANIMCOUNT_SKILL];
+
+	char		skillDesc[256];
+
+}	ANIMSET_t;
+
+
+
+	/* 애니메이션 클래스 */ 
+
+typedef enum
+
+{
+
+	ANIMTYPE_BYITEM	=	0,
+
+	ANIMTYPE_BYCOMMON,
+
+	ANIMTYPE_BYSKILL,
+
+}	Fx_CHAR_ANIMTYPE_t;
+
+
+
+	/* PC 용 lookup table 용 구조체(본 & 애니메이션) */ 	
+
+typedef struct
+
+{
+
+	int			boneIdx;
+
+	ANIMSET_t	animset;
+
+}	Fx_CHAR_LOOKUP_t;
+
+
+
+	/* 몬스터(NPC)용 lookup table 용 구조체 */ 
+
+typedef	struct
+
+{
+
+	int			boneIdx;
+
+	int			anim_monster [MAX_ANIMCOUNT_TYPE];
+
+	char		desc[256];
+
+}	Fx_MON_LOOKUP_t;
+
+
+
+	/* Keyframe */ 	
+
+typedef struct
+
+{
+
+	float			frame;
+
+	vec3_t			vecOffset;			
+
+	vec4_t			quatRotate;			/* World 좌표계에서 vector(1, 0, 0)을 회전시키는 quaternion. */ 
+
+										/* 결과적으로 bone 의 방향이 결정된다. */ 
+
+	vec4_t			quatCoordinate;		/* bone 이 가지는 좌표계를 parent bone 의 좌표계로부터 회전시키는 quaternion */ 
+
+} KEYFRAME;
+
+
+
+	/* Track */		// Bone 과 1:1 매치가 된다. 그러나 아마 Track 일부만 따로 export 하는 경우는
+
+					//   없을 것 같다. 그럴 경우 사실상 Track structure 가 따로 있을 필요는 없다.
+
+typedef struct
+
+{
+
+	INT				iBoneID;			// 현재 track 에 해당되는 Bone ID.
+
+	INT				iNumKeyframe;		// Keyframe 수.
+
+	FLOAT			fTimePerKeyframe;	// Keyframe 간의 간격.
+
+	KEYFRAME*		pKeyframe;			// Keyframe 에 대한 pointer.
+
+} TRACK;
+
+
+
+typedef union
+
+{
+
+	struct
+
+	{
+
+		unsigned	subtrack	:1;
+
+		unsigned				:0;
+
+	}	bit;
+
+	unsigned int	value;
+
+}	ANIM_PROPERTY_t;
+
+
+
+typedef	struct
+
+{
+
+	vec4_t				xformed_start;
+
+	vec4_t				xformed_end;					/* 32 */ 
+
+	DIFFUSETEXVERTEX	start	[MAX_AURA_IN_CHAR];
+
+	int					num_used;
+
+	float				height;							/* 208 */ 
+
+	DIFFUSETEXVERTEX	end		[MAX_AURA_IN_CHAR];
+
+	int					shaderIdx;
+
+	float				nextUpdate;						/* 384 */ 
+
+	float				correction;
+
+	bool				made;
+
+	bool				render;
+
+}	AURA_t;
+
+
+
+typedef struct
+
+{
+
+	bool		used;
+
+	WORD		defenderIdx;
+
+	WORD		defenderType;
+
+	WORD		attackerIdx;		/* 2003-09-30 : 추가 */ 
+
+	WORD		attackerType;		/* 2003-09-30 : 추가 */ 
+
+	WORD		attackType;
+
+	WORD		damage;
+
+	DWORD		identifier;
+
+	bool		stun;
+
+	bool		expired;
+
+}	ATTACKINFO_t;
+
+
+
+#define	MAX_COUNT_ATTACK_INFOS		10
+
+
+
+enum
+
+{
+
+	CHAR_COLOR_RED	=	0,
+
+	CHAR_COLOR_GREEN,
+
+	CHAR_COLOR_BLUE,
+
+	CHAR_COLOR_YELLOW,
+
+	CHAR_COLOR_CYAN,
+
+	CHAR_COLOR_MAGENTA,
+
+	CHAR_COLOR_MAX
+
+};
+
+
+
+struct	Fx_CHARACTER_t
+
+{
+
+	entityType_t			entityType;							/* pc/mon/npc/object 구별정보 */ 
+
+	int						tableIdx;
+
+	// 2004-06-16 13:40, Jongnam
+
+	int						pcJob;								// 플레이어 직업 정보
+
+	int						targetIdx;							/* 공격대상 idx */ 
+
+	int						targetID;							/* target 의 ID 값 */ 
+
+	vec3_t					position;							/* 위치 */ 
+
+	int						targetType;
+
+	vec3_t					angles;								/* 각도(pitch, yaw, roll) */ 
+
+	int					 	ID;									/* idx */ 
+
+	int						useInterpolation;					/* 동기화 메시지에 대한 보정을 처리했는지 유무 */ 
+
+	i3characterEvent_t		oldEvent;							/* 이전 이벤트 */ 
+
+	int						skinPart [FX_DEFAULT_SKIN_PART_NUMBER];			/* hair, head, upper, lower */ 
+
+
+
+#ifdef	_FX_CLIENT
+
+	int						idxOnServer;
+
+	int						equipNumber;									/* equipment */ 
+
+	char					name [64];
+
+
+
+	// 2003-12-16 : 종남
+
+	char					boothName[64];
+
+	int						boothState;
+
+
+
+	int						equipment [FX_MAX_EQUIPMENT_NUMBER];
+
+	i3characterEvent_t		event;								/* 현재의 event 정보 */ 
+
+
+
+	int						worldIdx;							/* 월드 번호 */ 
+
+	float					mouseAngle;							/* 마우스 클릭시 각도 정보 */
+
+
+
+	vec3_t					mousePos;							// 마우스 클릭 위치 
+
+	int						isAlive;							/* 캐릭터 생존 여부 */ 
+
+	vec3_t					syncPosition;						/* 동기화된 위치 */ 
+
+	float					moveSpeed;
+
+
+
+	int						curRA;								/* 현재 RA의 양 */ 
+
+	int						curSA;								/* 현재 SA의 양 */ 
+
+	int						calMaxRA;							/* 계산되는 최대 RA(기본 + 아이템 + 스킬 + 효과) */ 
+
+	int						calMaxSA;							/* 계산되는 최대 RA(기본 + 아이템 + 스킬 + 효과) */ 
+
+	float					summonValidTime;					/* 소환 시각 */
+
+	int						isTransform;						/* 변신 */
+
+	int						transformEntityIdx;					/* 변신한 엔티티의 인덱스(몬스터) */
+
+	int						transformType;						/* 변신 타입 */
+
+
+
+	chatMessage				chatMsg;
+
+	float					chatMsgTime;
+
+	int						scriptFlag;
+
+	int						isNewChar;
+
+		
+
+	// 2004-06-17 11:2, Jongnam
+
+	int						chaosPoint;							/* 카오수치	*/
+
+	int						pvpMode;							// pvp모드	
+
+
+
+	// (vemer 2004-06-14 14:13)
+
+	bool					bHide;								// Hide Skill (Idx : 44)
+
+
+
+#endif	/* _FX_CLIENT */ 
+
+
+
+/* 조경래 */ 
+
+	vec3_t					mins;
+
+	vec3_t					maxs;
+
+	vec3_t					forward;
+
+	vec3_t					right;
+
+	vec3_t					up;
+
+
+
+/* 동원 */ 
+
+
+
+	/* STATUS - 상태, 위치 정보등의 때에 따라 변화가 가능한 것들. */ 
+
+	float					stat_height;					/* ground 로 부터 캐릭터의 pelvis 까지의 높이 */ 
+
+	float					stat_disp_x;					/* 캐릭터 로컬 좌표축의 원점으로 부터 떨어져 있는 x 값 */ 
+
+	float					stat_disp_y;					/* 캐릭터 로컬 좌표축의 원점으로 부터 떨어져 있는 y 값 */ 
+
+	float					stat_fakeHeight;				/* 가짜 높이. position.z + height */ 
+
+	matrix4x4_t				stat_matTransform;				/* 캐릭터의 transform matrix */ 
+
+	float					stat_scale;						/* 해당 캐릭터 type 의 기본 크기와의 비례값 */ 
+
+//	int						stat_attack;					/* 캐릭터의 현재 공격 가능 여부 등의 공격 상태 */ 
+
+	int						stat_sound;						/* 캐릭터 관련 사운드 출력 여부 등의 상태 */ 
+
+	int						stat_recoveryTime;				/* 캐릭터의 리커버리 타임 */ 
+
+	float					stat_attackSpeed;
+
+	float					stat_radius;					/* 캐릭터의 반지름. 거리를 이용한 충돌 체크에 이용됨 */ 
+
+	Fx_CHARACTER_t			*stat_collidedChar;				/* 충돌했을 때의 캐릭터 */ 
+
+	int						stat_alive;						/* (몬스터에만 사용됨)몬스터 상태 */ 
+
+	int						stat_itemID	[MAX_COUNT_ITEM_PART];	/* 각 item part 에 대한 ID */ 
+
+	int						stat_skinID	[MAX_COUNT_SKIN_PART];	/* 각 mesh part 에 대한 ID */ 
+
+	int						stat_moveID	[MAX_COUNT_ITEM_PART];	/* 각 item part 에 대한 script ID. moving object 가 아닌 경우 -1 */ 
+
+	BYTE					stat_attacker;						/* 현재 캐릭터를 공격하는 캐릭터의 client 내에서의 index (ID) */ 	
+
+	BYTE					stat_LODLevel;						/* 캐릭터의 현재 LOD level. 카메라와의 거리에 따라 정해짐 */ 
+
+
+
+	float					stat_attackTime;				/* 공격 시간(delay) */ 
+
+
+
+	/* ATTRIBUTE - 속성, 캐릭터가 생성될 때 정해지는 것 */ 
+
+	int						attr_skelID;					/* 캐릭터의 뼈대(skeleton) ID */ 
+
+	float					attr_tall;						/* 이름 표시 등을 위한 고정된 실제 키높이 */ 
+
+
+
+	/* ANIMATION */ 
+
+	int						ani_option;						/* 캐릭터의 현재 애니메이션의 현재 상태등을 나타냄 */ 
+
+	int						ani_curSetType;					/* 애니메이션 테이블 인덱싱에 사용되는 값. Fx_CHAR_ANIMTYPE_t 참조 */ 
+
+	int						ani_curItemSetIndex;			/* 애니메이션 테이블 인덱싱에 사용되는 값. 무기 종류에 따라 분류 */ 
+
+	int						ani_curSetID;					/* 애니메이션 테이블 인덱싱에 사용되는 값. set 내부의 index */ 
+
+	int						ani_nextSetType;				/* 다음 애니메이션을 위해 저장되어 있는 애니메이션에 대한 값들 */ 
+
+	int						ani_nextItemSetIndex;
+
+	int						ani_nextSetID;
+
+	float					ani_curSpeed;					/* 현재 애니메이션의 animation speed.*/ 
+
+															/*		*주의* 이것의 단위는 (프레임/프레임 수) 로써 이 값을 직접 다루기는 힘들기 때문에 SetAnimationSpeedInSec() 를 사용한다. */ 
+
+															/* 		참고로 이 값이 커지면 애니메이션은 느려진다. */ 
+
+	float					ani_curRSpeed;					/* 1 / ani_curSpeed. 원 애니메이션의 1 프레임 당 프레임 수 */ 
+
+															/* 		참고로 이 값이 커지면 애니메이션 스피드가 빨라진다. */ 
+
+	float					ani_nextSpeed;					/* 저장된 애니메이션에 대한 ani_curSpeed 값 */ 
+
+	float					ani_nextRSpeed;					/* 1 / ani_nextSpeed */ 
+
+	int						ani_curIdx;						/* 현재 애니메이션의 instance index */ 
+
+	Fx_ANIM_STATE_t			ani_curState;					/* 현재 애니메이션의 상태값들 */ 
+
+	int						ani_curGroup;					/* 현재 애니메이션이 속해있는 그룹. Fx_ANIM_GROUP_t 참조 */ 
+
+	int						ani_nextIdx;					/* 저장된 애니메이션에 대한 값들 */ 
+
+	Fx_ANIM_STATE_t			ani_nextState;
+
+	int						ani_nextGroup;
+
+	float					ani_elapsed;					/* 동작의 시작점으로 부터 흐른 시간 */ 
+
+	float					ani_fraction;					/* 현재 애니메이션 frame의 위치를 비율로 나타낸 것 */ 
+
+	float					ani_oldFrame;					/* 이전 frame 에서 animation 내부에서의 frame 값을 저장하는 변수 */ 
+
+
+
+	/* ANIMATION INTERPOLATING */ 
+
+	int						ip_option;						/* interpolate options */ 
+
+	float					ip_totalTime;					/* interpolation 을 적용하는 시간 */ 
+
+	float					ip_curTime;						/* interpolation 시작 시점으로 부터 지난 시간 */ 
+
+	FX_CAnim				*ip_startAnim;					/* interpolation 의 시작 애니메이션 */ 
+
+	FX_CAnim				*ip_endAnim;					/* interpolation 의 끝 애니메이션. 시작과 끝 애니가 같을 수도 있음 */ 
+
+
+
+	/* KEYFRAME */ 
+
+	KEYFRAME				key_curFrames	[MAX_COUNT_BONE_IN_CHAR];	/* 현 시점의 keyframe data 를 저장 */ 
+
+	KEYFRAME				key_resultFrames[MAX_COUNT_BONE_IN_CHAR];	/*		캐릭터 로컬 좌표축을 기준으로 한 결과값을 저장하는 변수 */ 
+
+	KEYFRAME				key_copiedFrames[MAX_COUNT_BONE_IN_CHAR];	/*		key_curFrames 의 copied data */ 
+
+	int						key_curIndex	[MAX_COUNT_BONE_IN_CHAR];	/* 각 bone 별로, 현재 시점이 keyframe x 와 keyframe y 사이에 속해있을 때 x 값을 저장하는 변수 */ 
+
+	int						key_nextIndex	[MAX_COUNT_BONE_IN_CHAR];	/*		위 설명에서 y 값을 저장하는 변수 */ 
+
+	float					key_displace	[MAX_COUNT_BONE_IN_CHAR];	/* 		위 설명에서 x 와 y 내에서 현재 위치의 변위를 나타내는 변수 */ 
+
+
+
+	/* RENDERING */ 
+
+	int						ren_updateFPS;								/* update fps */ 
+
+	float					ren_updateSPF;								/* 1 / ren_updateFPS */ 
+
+	FX_BUFFERINDEX_t		ren_vtxBufferIdx[MAX_COUNT_SKIN_PART];		/* note 12-18-02 참조 */ 
+
+	float					ren_nextTime;								/* 다음 rendering update 시간 */ 
+
+	AURA_t					ren_auraLHandData;							/* 왼손 aura data */ 
+
+	AURA_t					ren_auraRHandData;							/* 오른손 aura data */ 
+
+	matrix4x4_t				ren_tagMatrixData	[MAX_COUNT_ITEM_PART];	/* 각 태그(아이템이 붙는 위치)에 대한 transform matrix 를 저장하는 변수 */ 
+
+	vec3_t					ren_xformedPelvisPos;						/* world 좌표계를 기준으로 한 캐릭터의 pelvis position */ 
+
+	float					ren_squareDist;								/* 카메라와 캐릭터 간의 거리의 square 값 */ 
+
+	Fx_CHARACTER_t			*ren_closerChar;							/* (culled == false) 캐릭터 중 나보다 카메라에 더 가까운 첫 캐릭터 */ 
+
+	Fx_CHARACTER_t			*ren_fartherChar;							/* (culled == false) 캐릭터 중 나보다 카메라에서 먼 첫 캐릭터 */ 
+
+	double					ren_stampedAppTime;							/* 특수 효과(이펙트)를 위해 stamping 된 시각 */ 
+
+
+
+	int						ren_staticEffectIndex [MAX_NUM_STATIC_EFFECT];
+
+	int						ren_staticEffectLevel [MAX_NUM_STATIC_EFFECT];
+
+	int						ren_staticEffectEntityIndex [MAX_NUM_STATIC_EFFECT];
+
+	float					ren_generalSpeed;
+
+	float					ren_oldGeneralSpeed;
+
+	int						ren_numStaticEffects;
+
+	int						ren_renderThisFrame;						/* 이번 frame 에 rendering 을 할 것인가? */ 
+
+
+
+	/* FLAG - 캐릭터의 상태 변화를 나타내는 것. option 포함. */ 
+
+	bool					flag_tagMatrixMade	[MAX_COUNT_ITEM_PART];	/* 각 태그(아이템이 붙는 위치)에 대한 transform matrix 가 이미 생성되어 있는지 여부 */ 
+
+	bool					flag_interpolation;				/* 현재 interpolation 중인지를 나타내는 flag */ 
+
+	bool					flag_culled;					/* 캐릭터가 culling 되었는지를 나타냄. true 인 캐릭터는 rendering, click check 등 여러 가지 처리에서 제외됨 */ 
+
+	bool					flag_useLHandAura;				/* 왼손의 aura 를 사용하는가? 왼손에 무기가 장착되었을 때만 사용 */ 
+
+	bool					flag_useRHandAura;				/* 오른손의 aura 를 사용하는가? 오른손에 무기가 장착되었을 때만 사용 */ 
+
+//	bool					flag_atkSuccess;				/* 공격이 성공했는지 여부 */ 
+
+	bool					flag_disappear;					/* 캐릭터가 죽어서 사라지는 상태인지 여부 */ 
+
+	bool					flag_appTimeStamped;			/* 특수 효과를 위해 시간을 stamping 했는지 여부 */ 
+
+	int						flag_replayAnim;				/* 애니메이션 replay 가 필요한지 여부 */ 
+
+	bool					flag_disappearSound;			/* 사라지는 효과시 사운드 플레이 여부 */ 
+
+//	bool					flag_skillReplayAnim;
+
+	bool					flag_forceUpdate;				/* 현재 캐릭터를 현재 프레임에서 반드시 새로 data 를 생성해야 하는지의 여부 */ 
+
+	bool					flag_drawSpawnEffect;			/* only for monster. spawn effect 를 그렸는지 여부 */ 
+
+	int						attackComboType;				/* for 16 bytes align */ 
+
+	bool					flag_outOfMySight;				/* 내 캐릭터가 target 캐릭터를 볼 수 있는지 여부. */ 
+
+
+
+
+
+#ifdef	_FX_TOOL
+
+	bool					flag_renderCharAura;			/* 캐릭터 주변의 오라를 그릴것인지 여부 */ 
+
+	bool					flag_renderSkelBound;			/* 캐릭터의 바운드 박스를 그릴것인지 여부 */ 
+
+#endif	/* _FX_TOOL */ 
+
+
+
+	/* etc */ 
+
+	int						soundTime;
+
+//	int						curAttackAniID;					/* current attack animation ID */ 
+
+
+
+	ATTACKINFO_t			atk_infoBuffer [MAX_COUNT_ATTACK_INFOS];
+
+	int						atk_curCombo;				/* 현재 combo 수 */ 
+
+	int						atk_nextStartFrame;			/* 공격 동작이 시작되는 frame */ 
+
+	int						atk_indexStart;
+
+	int						atk_nextBeginFrame;			/* damage 요청을 할 frame */ 
+
+	int						atk_indexBegin;
+
+	int						atk_nextDamageFrame;		/* damage 를 표시해 줄 frame */ 
+
+	int						atk_indexDamage;
+
+	int						atk_nextFreeFrame;			/* state change 가 가능한 frame */ 
+
+	int						atk_indexFree;
+
+	int						atk_changeEvent;			/* bool. 저장된 event 로 변해야 할 때 true, 그 이외에는 false */ 
+
+	int						atk_resend;
+
+	int						atk_playAnim;
+
+	float					atk_freeAttackTime;			/* 공격시간을 조절하기 위해 유휴시간에 곱해줄 값 */ 
+
+	float					atk_originalAttackTime;		/* 기본 공격 시간 */ 
+
+//	int						atk_changeToPreAttack;		/* pre attack */ 
+
+//	int						atk_rangeAttackEffectAdded;	/* 원거리 공격 effect 가 나갔는가~? */ 
+
+	int						atk_sendRangeAttackResend;	/* 원거리 공격 resend message 를 보낼 것인가?  */ 
+
+	int						atk_processDamage;
+
+
+
+		/* hit 또는 다른 이펙트를 위한 character trembling */ 
+
+	vec3_t					tb_originalPos;
+
+	float					tb_duration;
+
+	double					tb_startTime;
+
+	float					tb_power;
+
+	bool					tb_do;
+
+//	bool					tb_trigger;
+
+
+
+		/* 캐릭터 칼라 변화 시스템 */ 
+
+	int						cc_inUse;
+
+	vec3_t					cc_lightColorStart;
+
+	vec3_t					cc_lightColorEnd;
+
+	float					cc_timeElapsed;
+
+
+
+		/* 영수 관련 data */ 
+
+	int						isCreature;
+
+	int						cr_inUse;
+
+	int						cr_creatureIndex;		/* = monster table index */ 
+
+	Fx_CHARACTER_t			*cr_creature;
+
+	Fx_CHARACTER_t			*cr_owner;
+
+	
+
+/* functions */ 
+
+#ifndef	_FX_TOOL
+
+	void	GetFwdVector	(	vec3_t	vec	)
+
+	{
+
+		VectorSet ( vec,	forward [0],	forward [1],	forward [2] );
+
+	}
+
+	void	GetRightVector	(	vec3_t	vec	)
+
+	{
+
+		VectorSet ( vec,	right [0],	right [1],	right [2] );
+
+	}
+
+    void	GetUpVector	(	vec3_t	vec	)
+
+	{
+
+		VectorSet ( vec,	up [0],	up [1],	up [2] );
+
+	}
+
+#endif	/* #ifndef	_FX_TOOL */ 
+
+	
+
+	void	SetupVectors ()		{	AngleVectors ( angles,	forward,	right,	up );	}
+
+};
+
+
+
+/*┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ */ 
+
+/*┃ END OF Fx_CHARACTER_t                                                                ┃ */ 
+
+/*┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ */ 
+
+
+
+
+
+	/* 09/29 added : buffer for config data */ 
+
+typedef struct
+
+{
+
+	char	name [256];
+
+}	Fx_TEX_BUF_t;
+
+
+
+typedef struct
+
+{
+
+	char	name [256];
+
+	UINT	id;
+
+}	Fx_ANIM_BUF_t,	Fx_SKEL_BUF_t;
+
+
+
+typedef struct
+
+{
+
+	char	name [256];
+
+	UINT	id;
+
+	char	texname [256];
+
+}	Fx_ITEM_BUF_t,	Fx_SKIN_BUF_t;
+
+
+
+typedef struct
+
+{
+
+	char	name[ 68 ];
+
+	int		shader;
+
+	int		surfaceFlags;
+
+	int		isShader;
+
+}	CHAR_SHADERREF_t;
+
+
+
+#include "FX_Etcs/Utilities.h"
+
+	
+
+#include "FX_Base/Animation.h"
+
+#include "FX_Base/Skeleton.h"
+
+#include "FX_Base/Mesh.h"
+
+
+
+#include "FX_Managers/TagManager.h"
+
+
+
+#include "FX_Renderer/ItemRenderer.h"
+
+#include "FX_Renderer/SkinRenderer.h"
+
+#include "FX_Renderer/AuraRenderer.h"
+
+
+
+#ifdef	_FXSKELDRAW
+
+#	include "FX_Managers/SkelDrawManager.h"
+
+#endif
+
+
+
+#ifdef	_OBJECTMNG
+
+#	include "FX_Managers/ObjectManager.h"
+
+#	include "FX_Managers/ObjectClassManager.h"
+
+#endif
+
+
+
+#include "FX_Managers/AuraMAnager.h"
+
+#include "CharacterManager.h"
+
+#include "FX_Managers/AnimationManager.h"
+
+#include "FX_Managers/ItemManager.h"
+
+#include "FX_Managers/SkeletonManager.h"
+
+#include "FX_Managers/SkinManager.h"
+
+#include "FX_Managers/CharLookupManager.h"
+
+#include "FX_Managers/CharShaderManager.h"
+
+
+
+extern const vec4_t			UNIT_X_QUAT;
+
+extern const matrix4x4_t	IDENTITY_MATRIX;
+
+extern const vec3_t			ZERO_VECTOR3;
+
+
+
+extern	vec4_t			GLOBAL_QUAT_1;
+
+extern	vec4_t			GLOBAL_QUAT_2;
+
+extern	vec4_t			GLOBAL_QUAT_3;
+
+
+
+extern	vec3_t			GLOBAL_DXVEC3_1;
+
+extern	vec3_t			GLOBAL_DXVEC3_2;
+
+extern	vec3_t			GLOBAL_DXVEC3_3;
+
+extern	vec3_t			GLOBAL_DXVEC3_4;
+
+extern	vec3_t			GLOBAL_DXVEC3_5;
+
+extern	vec3_t			GLOBAL_DXVEC3_6;
+
+extern	vec3_t			GLOBAL_DXVEC3_7;
+
+extern	vec3_t			GLOBAL_DXVEC3_8;
+
+extern	vec3_t			GLOBAL_DXVEC3_9;
+
+extern	vec3_t			GLOBAL_DXVEC3_10;
+
+extern	vec3_t			GLOBAL_DXVEC3_11;
+
+
+
+extern	vec4_t			GLOBAL_DXVEC4_1;
+
+extern	vec4_t			GLOBAL_DXVEC4_2;
+
+extern	vec4_t			GLOBAL_DXVEC4_3;
+
+
+
+extern	matrix4x4_t			GLOBAL_DXMATRIX_1;
+
+
+
+extern	vec3_t				GLOBAL_VEC3_1;
+
+extern	vec3_t				GLOBAL_VEC3_2;
+
+extern	vec3_t				GLOBAL_VEC3_3;
+
+extern	vec3_t				GLOBAL_VEC3_4;
+
+
+
+extern	vec4_t				GLOBAL_VEC4_1;
+
+extern	vec4_t				GLOBAL_VEC4_2;
+
+extern	vec4_t				GLOBAL_VEC4_3;
+
+extern	vec4_t				GLOBAL_VEC4_4;
+
+extern	vec4_t				GLOBAL_VEC4_5;
+
+
+
+extern	matrix4x4_t			GLOBAL_MATRIX_1;
+
+extern	matrix4x4_t			GLOBAL_MATRIX_2;
+
+
+
+extern	matrix4x4_t			GLOBAL_SCALEMATRIX;
+
+extern const float			FX_DEGTORAD;
+
+extern	bboxf_t				GLOBAL_BBOX;	
+
+
+
+#ifdef	_FXDEBUG
+
+extern	char				DBGSTRING [MAX_PATH];
+
+#endif
+
+
+
+	/* for tools */ 
+
+#ifdef	_FX_TOOL
+
+	#pragma	warning	(	disable : 4786	)
+
+
+
+	#include		<vector>
+
+
+
+	#define		VEC_STRING		std::vector<std::string>
+
+
+
+	typedef	char	FILENAME	[256];
+
+
+
+	#include	"FX_Tools/Tool.h"
+
+#endif
+
+
+
+#endif
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
