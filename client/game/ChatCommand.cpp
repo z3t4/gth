@@ -2603,14 +2603,6 @@ void GTH_ChatCommand( char* message )
 		if( command[0] == 0 ) return;
 
 
-		
-		if( g_LPACK.CheckAbuseWord(command))
-		{
-			g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 21 ), GTHCOLOR_ERRORMESSAGE );
-			return;
-		}
-
-
 		GTH_SendChatMessage( command, IF_CHATMSG_TYPE_DAN );
 
 
@@ -2708,13 +2700,6 @@ void GTH_ChatCommand( char* message )
 
 			
 		}
-		
-
-		if( g_LPACK.CheckAbuseWord( param[0] ) )
-		{
-			g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 21 ), GTHCOLOR_ERRORMESSAGE );
-			return;
-		}
 
 		GTH_SendChatMessage_Whisper( g_cgv.whisperName, param[0] );
 
@@ -2732,19 +2717,11 @@ void GTH_ChatCommand( char* message )
 		
 		if( chatmsg[0] == NULL ) return;
 
-		if( g_LPACK.CheckAbuseWord( chatmsg ) )
-		{
-			g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 21 ), GTHCOLOR_ERRORMESSAGE );
-			
-			
-	
 			if(	g_cgv.myCharacterInfo->m_bChatBan_Flag==false)
 			{
 				GTH_SendChatBan_Flag();
+				return;
 			}
-	
-			return;
-		}
 
 		
 		

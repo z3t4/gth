@@ -430,15 +430,6 @@ void CIFLoginWin::RequestCheckCharacterName()
 			return;
 		}
 	}
-
-	
-		
-	if (g_LPACK.CheckAbuseWord(pChar->name) || g_LPACK.CheckCharacterName(pChar->name))
-	{
-		g_ifMng->SetMessage( g_LPACK.GetMassage(0,322), 
-			g_LPACK.GetMassage(LPACK_TYPE_NORMAL,117), 	1, IF_MESSAGE_NONE );
-		return;
-	}	
 	GTH_SendMessage_RequestCheckCharacterName( pChar->name );
 }
 
