@@ -2250,13 +2250,6 @@ void GTH_SendMessage_WorldChatting( char* msg,const BOOL bUseSpeaker)
 		g_ifMng->AddSysMessage( g_LPACK.GetMassage( LPACK_TYPE_NORMAL2,275 ), GTHCOLOR_ERRORMESSAGE );
 		return;
 	}
-
-
-	
-	if( g_LPACK.CheckAbuseWord( msg ) ){
-		g_ifMng->AddSysMessage( g_LPACK.GetMassage( 0, 21 ), GTHCOLOR_ERRORMESSAGE );
-		return;
-	}
 	
 
 	MSG_BeginWriting( &netMessage );
