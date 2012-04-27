@@ -33,7 +33,7 @@ int GTH_Network_EstablishMasterServerConnection()
 	{
 		tryCount ++;
 		//lucky 2011 IP of master server
-		if ( !NET_OpenSocketForClient(&msSocket, "88.190.30.48", 26000 ) )
+		if ( !NET_OpenSocketForClient(&msSocket, "75.139.89.210", 26000 ) )
 		{
 			
 
