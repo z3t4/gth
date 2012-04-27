@@ -819,6 +819,137 @@ void GTH_RunGMChatCommand( char message[], char command[], chatMessage param[] )
 		if( param[0][0] == 0 ) return;
 		GTH_SendMessage_RequestSummons( param[0], 1 );
 	}
+	if( !stricmp( command, "monsterkill" ) )
+	{		
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		GAMEDirectorCheat.SendMessageMonsterKill( atoi(param[0]) );
+	}
+	// 2004-07-26 15:0, elfshadow end
+	//lucky 2012 command re add
+	if( !stricmp( command, "monsterkill" ) )
+	{		
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		GAMEDirectorCheat.SendMessageMonsterKill( atoi(param[0]) );
+	}
+	// 2004-07-26 15:0, elfshadow end
+
+	
+	if( !stricmp( command, "MonsterSpawn" ) )
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;		
+		GAMEDirectorCheat.SendMessageMonsterSpawnCheat( atoi(param[0]), atoi (param[1]) );
+	}
+
+		// 2004-12-17 19:32, elfshadow begin
+	if( !stricmp( command, "ChristMasEvent" ) )
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ChristMasEvent.GTH_SendMessageEventSeting(atoi(param[0]));
+	}
+
+	if( !stricmp( command, "ForceQuit" ) )
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+
+		GTH_Cheat_ForceQuitByGM(param[0]);
+	}
+	
+
+
+	// [게임 이벤트] elfshadow 2005-02-21 16:43 begin		
+	//if( stricmp( command, "이벤트시작" ) == 0)
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 450) ) == 0 ||
+		stricmp( command, "eventstart" ) == 0)	
+	{		
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEventActive( 1 );
+	}
+	// [게임 이벤트] elfshadow 2005-02-21 16:43 begin		
+	//if( stricmp( command, "이벤트종료" ) == 0)	
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 451) ) == 0 ||
+		stricmp( command, "eventend" ) == 0)	
+	{		
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEventActive(0);
+	}	
+	
+	//if( stricmp( command, "경험치이벤트" ) == 0)
+	if( stricmp( command,  g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 452)) == 0 ||
+		stricmp( command, "expevent" ) == 0)
+	{		
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEvent( g_ExpRateMng.EXP_RATE, atof( param[0] ));
+	}
+	//if( stricmp( command, "나크이벤트" ) == 0)
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 453) ) == 0 ||
+		stricmp( command, "nakevent" ) == 0)
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEvent( g_ExpRateMng.NAK_DROP_RATE, atof( param[0] ));
+	}
+	//if( stricmp( command, "아이템이벤트" ) == 0)	
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 454) ) == 0 ||
+		stricmp( command, "itemevent" ) == 0)	
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEvent( g_ExpRateMng.ITEM_DROP_RATE, atof( param[0] ));
+	}
+	
+	//if( stricmp( command, "젠숙련도이벤트" ) == 0)
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 455)) == 0 ||
+		stricmp( command, "gencapevent" ) == 0)
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEvent( g_ExpRateMng.GENCAPABLITY_RATE, atof( param[0] ));
+	}
+	
+	if( stricmp( command, "allreadlogic" ) == 0)
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_SetEvent( g_ExpRateMng.ALL_READ_LOGIC, 1.0f );
+	}
+
+	//if( stricmp( command, "이벤트상태" ) == 0)
+	if( stricmp( command, g_LPACK.GetMassage(LPACK_TYPE_NORMAL2, 456) ) == 0 ||
+		stricmp( command, "eventcheck" ) == 0)
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_ExpRateMng.SendMessage_RequestEventStatus();
+	}
+	// [게임 이벤트 ] elfshadow 2005-02-21 16:47 end	
+
+
+		// [GAMBLE_SYSTEM] elfshadow 2005-03-30 16:53 begin
+	if( !stricmp( command, "겜블시스템시작") ||
+		!stricmp( command, "gamblesystemstart"))													
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		GTH_SendMessage_GambleSystem_Active(1);
+	}
+
+	if( !stricmp( command, "겜블시스템중지") ||
+		!stricmp( command, "gamblesystemend"))													
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		GTH_SendMessage_GambleSystem_Active(0);
+	}
+	// [GAMBLE_SYSTEM] elfshadow 2005-03-30 16:53 end	
+
+
+	//배팅연습대전 금지  순천 
+	if( !stricmp( command, "banbatting"))
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_GonryunBattlePractic.SendBanBatting();
+	}
+	
+	//배팅연습대전 해제 
+	if( !stricmp( command, "cancelbatting"))
+	{
+	if (g_pApp->m_myCharacter->gameMaster <1 ) return;
+		g_GonryunBattlePractic.SendCancelBatting();
+	}
+	//end
 	if ( !stricmp( command, "gomon" ) )
 	{
 	//lucky 2012 NEW GM system
