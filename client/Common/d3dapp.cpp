@@ -118,13 +118,9 @@ HRESULT CD3DApplication::Create( HINSTANCE hInstance )
 
         RegisterClass( &wndClass );
 
-        
-		if( m_bWindowed )
-			m_dwWindowStyle = WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_THICKFRAME|
-				              WS_MINIMIZEBOX|WS_VISIBLE;
-			
-		else
-			m_dwWindowStyle = WS_POPUP;
+		//lucky 2012 Windowed    
+		m_dwWindowStyle = WS_CAPTION|WS_MINIMIZEBOX|WS_SYSMENU;
+		//end
 
 		
 
@@ -132,21 +128,22 @@ HRESULT CD3DApplication::Create( HINSTANCE hInstance )
 		if( g_userConfig.resoution == 0  )
 		{
 			m_dwCreationWidth   = 800;
-			m_dwCreationHeight  = 600;
+			m_dwCreationHeight  = (600 - 50);
 		}
 		else if( g_userConfig.resoution == 1 )
 		{
 			m_dwCreationWidth   = 1024;
-			m_dwCreationHeight  = 768;
+			m_dwCreationHeight  = (768 - 50);
 		}
 		else if( g_userConfig.resoution == 2 )
 		{
 			m_dwCreationWidth   = 1280;
-			m_dwCreationHeight  = 1024;
+			m_dwCreationHeight  = (1024 - 50);
 		}else if( g_userConfig.resoution == 3 )
 		{
-			m_dwCreationWidth   = 1600;
-			m_dwCreationHeight  = 1200;
+			m_dwWindowStyle = WS_POPUP | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+			m_dwCreationWidth   = GetSystemMetrics(SM_CXSCREEN);
+			m_dwCreationHeight  = GetSystemMetrics(SM_CYSCREEN);
 		}
 
 
@@ -697,211 +694,21 @@ BOOL CD3DApplication::FindDepthStencilFormat( UINT iAdapter, D3DDEVTYPE DeviceTy
 LRESULT CD3DApplication::MsgProc( HWND hWnd, UINT uMsg, WPARAM wParam,
                                   LPARAM lParam )
 {
-    HRESULT hr;
-    
+    int wmId, wmEvent;
     switch( uMsg )
     {
-        case WM_PAINT:
-            
-            if( m_pd3dDevice && !m_bReady )
-            {
-                if( m_bWindowed )
-                {
-                    Render();
-                    m_pd3dDevice->Present( NULL, NULL, NULL, NULL );
-                }
-            }
-            break;
-
-        case WM_ACTIVATEAPP:
-            m_bHasFocus = (BOOL) wParam;
-            break;
-
-        case WM_GETMINMAXINFO:
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 100;
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 100;
-            break;
-
-        case WM_ENTERSIZEMOVE:
-            
-            Pause( TRUE );
-            break;
-
-        case WM_SIZE:
-            
-            if( SIZE_MAXHIDE==wParam || SIZE_MINIMIZED==wParam )
-            {
-                if( m_bClipCursorWhenFullscreen && !m_bWindowed )
-                    ClipCursor( NULL );
-                m_bActive = FALSE;
-            }
-            else
-            {
-                m_bActive = TRUE;
-            }
-            break;
-
-        case WM_EXITSIZEMOVE:
-            Pause( FALSE );
-
-            if( m_bActive && m_bWindowed )
-            {
-                RECT rcClientOld;
-                rcClientOld = m_rcWindowClient;
-
-                
-                GetWindowRect( m_hWnd, &m_rcWindowBounds );
-                GetClientRect( m_hWnd, &m_rcWindowClient );
-
-                if( rcClientOld.right - rcClientOld.left !=
-                    m_rcWindowClient.right - m_rcWindowClient.left ||
-                    rcClientOld.bottom - rcClientOld.top !=
-                    m_rcWindowClient.bottom - m_rcWindowClient.top)
-                {
-                    
-                    
-                    m_bReady = FALSE;
-
-                    m_d3dpp.BackBufferWidth  = m_rcWindowClient.right - m_rcWindowClient.left;
-                    m_d3dpp.BackBufferHeight = m_rcWindowClient.bottom - m_rcWindowClient.top;
-
-                    
-                    if( FAILED( hr = Resize3DEnvironment() ) )
-                    {
-                        DisplayErrorMsg( D3DAPPERR_RESIZEFAILED, MSGERR_APPMUSTEXIT );
-                        return 0;
-                    }
-
-                    m_bReady = TRUE;
-                }
-            }
-
-            break;
-
-        case WM_SETCURSOR:
-		    SetCursor( NULL );
-
-			break;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-       case WM_ENTERMENULOOP:
-            
-            Pause(TRUE);
-            break;
-
-        case WM_EXITMENULOOP:
-            Pause(FALSE);
-            break;
-
-        case WM_NCHITTEST:
-            
-            if( !m_bWindowed )
-                return HTCLIENT;
-
-            break;
-
-        case WM_POWERBROADCAST:
-            switch( wParam )
-            {
-                #ifndef PBT_APMQUERYSUSPEND
-                    #define PBT_APMQUERYSUSPEND 0x0000
-                #endif
-                case PBT_APMQUERYSUSPEND:
-                    
-                    
-                    
-                    return TRUE;
-
-                #ifndef PBT_APMRESUMESUSPEND
-                    #define PBT_APMRESUMESUSPEND 0x0007
-                #endif
-                case PBT_APMRESUMESUSPEND:
-                    
-                    
-                    
-                    return TRUE;
-            }
-            break;
-
-        case WM_SYSCOMMAND:
-            
-            switch( wParam )
-            {
-                case SC_MOVE:
-                case SC_SIZE:
-                case SC_MAXIMIZE:
+		    case WM_SYSCOMMAND:
+			wmId    = LOWORD(wParam); 
+			wmEvent = HIWORD(wParam); 
+            switch( wmId )
+			{
                 case SC_KEYMENU:
-                case SC_MONITORPOWER:
-
-						return DefWindowProc( hWnd, uMsg, wParam, lParam );
-                        return 1;
-                    break;
-            }
-            break;
-
-        case WM_COMMAND:
-            switch( LOWORD(wParam) )
-            {
-                case IDM_CHANGEDEVICE:
-                    
-                    if( m_bActive && m_bReady )
-                    {
-                        Pause(TRUE);
-
-                        if( FAILED( hr = UserSelectNewDevice() ) )
-                            return 0;
-
-                        Pause(FALSE);
-                    }
-                    return 0;
-
-                case IDM_TOGGLEFULLSCREEN:
-                    
-                    if( m_bActive && m_bReady )
-                    {
-                        Pause( TRUE );
-                        
-                        if( FAILED( ToggleFullscreen() ) )
-                        {
-                            DisplayErrorMsg( D3DAPPERR_RESIZEFAILED, MSGERR_APPMUSTEXIT );
-                            return 0;
-                        }
-
-                        Pause( FALSE );                        
-                    }
-                    return 0;
-
-                case IDM_EXIT:
-                    
-                    
-                    return 0;
+					return 1;
+					break;
             }
             break;
 
         case WM_CLOSE:
-
-            
 			if	(	GetMenu(hWnd)	!=	NULL	)
 				DestroyMenu( GetMenu(hWnd) );
             DestroyWindow( hWnd );

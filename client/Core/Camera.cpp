@@ -26,7 +26,7 @@ CCamera::CCamera()
     m_projectParm.zfar  = 5000.0f;
 
 	m_minCamDist = -40.0f;
-	m_maxCamDist = -350.0f;
+	m_maxCamDist = -950.0f; //lucky Cam distance.
 
 	m_viewType = CAMERA_VIEWTYPE_PLAYER_BACK | CAMERA_VIEWTYPE_QUATER_VIEW;
 	m_characterAngle = 0.0f;

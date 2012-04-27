@@ -7,13 +7,8 @@ gthconfig_t		g_userConfig;
 int GTH_Setup_LoadConfig( char* filename )
 {
 	char* token;
-
-	memset( &g_lowQualityConfig, 0, sizeof( gthconfig_t ) );
-	memset( &g_highQualityConfig, 0, sizeof( gthconfig_t ) );
 	memset( &g_userConfig, 0, sizeof( gthconfig_t ) );
 	
-	g_lowQualityConfig.isLoaded = false;
-	g_highQualityConfig.isLoaded = false;
 	g_userConfig.isLoaded = false;
 
 	if( !BeginTokenScript( filename ) ) return 0;
@@ -24,71 +19,7 @@ int GTH_Setup_LoadConfig( char* filename )
 		if( token == NULL ) break;
 		
 		
-		if( !stricmp( token, "l_resolution" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.resoution = atoi( token );
-		} else if( !stricmp( token, "l_texture" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.texture = atoi( token );
-		} else if( !stricmp( token, "l_shadow" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.shadow = atoi( token );
-		} else if( !stricmp( token, "l_vision" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.vision = atoi( token );
-		} else if( !stricmp( token, "l_fog" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.fog = atoi( token );
-		} else if( !stricmp( token, "l_window" ) )
-		{
-			g_lowQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_lowQualityConfig.window = atoi( token );
-		}
-		
-		else if( !stricmp( token, "h_resolution" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.resoution = atoi( token );
-		} else if( !stricmp( token, "h_texture" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.texture = atoi( token );
-		} else if( !stricmp( token, "h_shadow" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.shadow = atoi( token );
-		} else if( !stricmp( token, "h_vision" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.vision = atoi( token );
-		} else if( !stricmp( token, "h_fog" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.fog = atoi( token );
-		} else if( !stricmp( token, "h_window" ) )
-		{
-			g_highQualityConfig.isLoaded = true;
-			token = NextToken();
-			g_highQualityConfig.window = atoi( token );
-		}
-		
-		else if( !stricmp( token, "u_resolution" ) )
+		if( !stricmp( token, "u_resolution" ) )
 		{
 			g_userConfig.isLoaded = true;
 			token = NextToken();

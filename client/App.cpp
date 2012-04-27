@@ -233,20 +233,6 @@ INT WINAPI WinMain( HINSTANCE hInst, HINSTANCE, LPSTR lpszCmdParam, INT )
 
 	 
 	g_musicMng->EnableMusicMng();
-
-
-
-#if defined WINDOW_MODE
-	if( strstr( lpszCmdParam, "/win" ) )
-	{
-		g_pApp->SetWindowMode( true );
-		g_pApp->m_bFullScreen = false;
-	}
-#endif
-
-
-
-
 	 
 	g_musicMng->LockMusicMng();
 
@@ -452,9 +438,10 @@ GTH::GTH()
 
 	
 	m_IMEReady = false;
-
-	m_bFullScreen		= true;
-	m_bWindowed			= false;
+	//lucky 2012 Windowed all gth .
+	m_bFullScreen		= false;
+	m_bWindowed			= true;
+	//end
 
 
 

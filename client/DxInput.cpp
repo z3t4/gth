@@ -359,10 +359,6 @@ bool CInputMng::Handle_messages( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
             m_wheelDelta = (short)HIWORD(wp);
             ShowLogInfo( "WM_MOUSEWHEEL " );
             break;
-		
-		case WM_SYSCOMMAND :
-			return true;
-			break;
 
        case WM_SETCURSOR:
 		    SetCursor( NULL );
