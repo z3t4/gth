@@ -455,7 +455,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			GTH_SendSyncMessage();			
 			DB_ProcessQueryResultQueue();	
 			GTH_UpdateFrameRate();
-			Sleep(1);//lucky CPU
+			Sleep(10);//lucky CPU
 			
 			PkTimeAutoProcess();
 
