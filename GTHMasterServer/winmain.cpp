@@ -240,7 +240,7 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 		g_logSystem->Update();
 
 		
-		Sleep(1) ; //lucky CPU
+		Sleep(10) ; //lucky CPU
 	}
 
 	
