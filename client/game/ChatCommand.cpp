@@ -2851,7 +2851,6 @@ void GTH_ChatCommand( char* message )
 			if(	g_cgv.myCharacterInfo->m_bChatBan_Flag==false)
 			{
 				GTH_SendChatBan_Flag();
-				return;
 			}
 
 		
