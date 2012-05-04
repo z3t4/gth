@@ -189,18 +189,13 @@ INT WINAPI WinMain( HINSTANCE hInst, HINSTANCE, LPSTR lpszCmdParam, INT )
 	
 	g_cgv.isDeveloper = true;				
 	g_cgv.isUpdatePatch = false;			
-
-
-
-
-
-
-
-
-
-	#ifdef _TERRA
-	gcTerraCtrl.CommandlineParam(lpszCmdParam);
-	#endif
+	//lucky 2012 Launcher ADD
+	if( !strstr( lpszCmdParam, "/xhKdu78838J" ) )
+	{
+		MessageBox(NULL, "Please run GTH from the launcher GTH.exe","error", MB_OK);
+		return 0;
+	}
+	//end
 
 	//lucky 2012 start only 1 GTH client . 
 	HANDLE winmutex = CreateMutex(NULL,FALSE,"Gate to Heavens");
@@ -246,10 +241,6 @@ INT WINAPI WinMain( HINSTANCE hInst, HINSTANCE, LPSTR lpszCmdParam, INT )
 #endif
 	 
 	g_cgv.currentWorldIdx = -1;
-
-
-	
-	GTH::MovePatchProgram();
 	
 
     if( !d3dApp.InitEngine( hInst ) )
@@ -1408,55 +1399,6 @@ void	GTH::ToggleFullScreen	()
 	}
 
 	CD3DApplication::ToggleFullscreen ();
-}
-
-
-
-
-
-
-
-
-
-void GTH::MovePatchProgram()
-{
-	char				Curpath[MAX_PATH];	
-	char				Findpath[MAX_PATH];	
-	WIN32_FIND_DATA		finddata;
-	HANDLE				fileHandel;
-	HRESULT				Hresult;
-	
-	memset(&finddata, 0, sizeof(WIN32_FIND_DATA) );
-	GetCurrentDirectory(MAX_PATH, Curpath);
-
-	
-	sprintf(Findpath, "%s%s", Curpath, "\\data\\GTH.PACK");
-	
-
-	fileHandel = FindFirstFile(Findpath, &finddata);	
-
-	while ( 1 )
-	{
-		Hresult  = FindNextFile(fileHandel, &finddata);
-
-		if ( Hresult == 0 )	
-		{			
-			 
-			if ( stricmp( finddata.cFileName , "GTH.PACK") == 0)
-			{
-				Sleep(3000);				
-				strcat(Curpath, "\\GTH.EXE");
-				
-				if ( DeleteFile(Curpath) == TRUE )
-				{
-					Sleep(2000);			
-					Hresult = MoveFile(Findpath, Curpath);
-				}
-			}
-			break;
-		}
-	}
-	FindClose(fileHandel);
 }
 
 

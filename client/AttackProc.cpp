@@ -301,7 +301,12 @@ void CAttackProc::GTH_SendEventMessage_Attack()
 		MSG_WritePosition(&netMessage, g_pApp->m_myCharacter->position);
 		MSG_WriteFloat(&netMessage, g_pApp->m_myCharacter->angles[ YAW ]);
 		MSG_WriteByte(&netMessage, g_pApp->m_myCharacter->event);
-		
+		//lucky 2012 no range hack
+		MSG_WriteShort(&netMessage, g_cgv.myCharacterInfo->calAttackLength);
+		//end
+		//lucky 2012 speed hack
+		MSG_WriteLong(&netMessage, g_cgv.myCharacterInfo->calAttackDelay);
+		//end
 		 
 		 
 		
@@ -460,6 +465,9 @@ int CAttackProc::GTH_SendEventMessage_Skill()
 		
 		MSG_WritePosition(&netMessage, g_pApp->m_myCharacter->position);
 		MSG_WriteFloat(&netMessage, g_pApp->m_myCharacter->angles[ YAW ]);
+		//lucky 2012 no range hack
+		MSG_WriteShort(&netMessage,g_cgv.myCharacterInfo->calAttackLength);
+		//end
 		MSG_WriteByte(&netMessage, g_pApp->m_myCharacter->atk_resend );
 		
 		NET_SendMessage(&gsSocket, &netMessage,	true);

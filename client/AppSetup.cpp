@@ -257,7 +257,6 @@ void GTH::SetupCursor_Neo()
 
 
 
-					WriteToLog("Atk_resend (1) didi");
 					
 					if(g_cgv.pTargetChar==NULL)break;
 					
@@ -357,7 +356,6 @@ void GTH::SetupCursor_Neo()
 						g_cgv.resendFlag			= false;
 						g_cgv.resendTargeting		= false;
 						m_myCharacter->atk_resend	= false;
-						WriteToLog("Atk_resend (2)");
 					}
 				}
 				
@@ -384,7 +382,6 @@ void GTH::SetupCursor_Neo()
 				g_cgv.resendAttack			= false;
 				g_cgv.resendFlag			= false;
 				g_cgv.resendTargeting		= false;
-				WriteToLog("Atk_resend (3)");
 
 
 			}

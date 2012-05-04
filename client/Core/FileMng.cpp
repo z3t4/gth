@@ -105,10 +105,6 @@ void CFileMng::MakePackFilesMap()
 				if( pi->fi.date > pi_byname->fi.date )
 				{
 					RegisterFile( pi->fi.name, pi );
-					
-					WritePackFileLog( "Duplicate file, %s(in %s) -> %s(in %s)", 
-						pi_byname->fi.name, pi_byname->pack_name,
-						pi->fi.name, pi->pack_name );
 				}
 			}
 		}
