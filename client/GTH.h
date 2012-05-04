@@ -187,9 +187,6 @@ public:
 	int		GTH::ChangeResolution	(	int		in_mode		);
 	
 	
-	static void	MovePatchProgram();
-	
-	
 
 protected:
 

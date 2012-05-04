@@ -102,12 +102,12 @@ void EndProfile(char* pMsg)
 
 void WriteToLog( const char *format, ... )
 {
-#ifndef _DEBUG
-	return;
-#endif		
+//#ifndef _DEBUG
+//	return;
+//#endif		
 
 	FILE *LogFP = NULL;
-	LogFP = fopen ( "LogFile.txt", "a+");
+	LogFP = fopen ( "..\\LogFile.txt", "a+");
 	if ( LogFP == NULL)
 		return;	
 

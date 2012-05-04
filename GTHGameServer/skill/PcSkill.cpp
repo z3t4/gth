@@ -676,7 +676,6 @@ void CPcSkill::GTH_Recv_UseSkill()
 	int targetIdx, targetType;
 	float angle;
 	int SkillDamage;
-	
 	skillIdx		= MSG_ReadShort();
 	skillTargetType = MSG_ReadByte();
 	MSG_ReadPosition( g_curPC->saveSkillTargetPos );
@@ -684,6 +683,14 @@ void CPcSkill::GTH_Recv_UseSkill()
 	targetType		= MSG_ReadByte();
 	MSG_ReadPosition( g_curPC->position );
 	angle			= MSG_ReadFloat();
+	//lucky 2012 no range hack
+	int AttckLen = MSG_ReadShort();
+	if (g_curPC->calAttackLength != AttckLen) 
+	{
+		g_logSystem->WriteToHackingLog("[HACKING_SKILL] UserID:[%s]  char:[%s] ·Tryed to No range attak with skills.",g_curPC->userID,g_curPC->name);
+		return;
+	}
+	//end
 	SkillDamage		= MSG_ReadByte();	
 
 	if ( SkillDamage == 1){

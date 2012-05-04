@@ -1,6 +1,8 @@
 #include "../global_def.h"
 #include "../MfcLib/MfcLib.h"
-
+//lucky 2012 read IP from config.ini
+#include "../Ini.h"
+//end
 
 extern i3socket_t msSocket;	
 extern i3sizebuf_t netMessage; 
@@ -15,27 +17,31 @@ extern unsigned int g_netTime;
 
 
 
-
-
 int GTH_Network_EstablishMasterServerConnection()
 {
-	char cErrorMsg[256];
-	int tryCount;
-	int masterIdx;
-	int state;
-
+char cErrorMsg[256];
+int tryCount;
+int masterIdx;
+int state;
+//lucky 2012 Read from config.ini the IP where the client need to connect.
+CIni iniConfig;
+char sPath[260] = {0};
+GetCurrentDirectory( 260, sPath );
+strcat( sPath, "\\" );
+strcat( sPath, "..\\config.ini" );
+iniConfig.SetPathName( sPath );
+char ip[32] = {0};
+iniConfig.GetArray( "IPCONFIG", "serverip", ip, 32 );
+//end
 	tryCount = 0;
-	
 	masterIdx = F_RANDOMBETWEEN(0, g_cgv.masterServerNumber-1);
 	if (masterIdx < 0) return 0;
 
 	do
 	{
 		tryCount ++;
-		//lucky 2011 IP of master server
-		if ( !NET_OpenSocketForClient(&msSocket, "75.139.89.210", 26000 ) )
+		if ( !NET_OpenSocketForClient(&msSocket, ip, 26000 ) )
 		{
-			
 
 
 			wsprintf(cErrorMsg, g_LPACK.GetMassage(LPACK_TYPE_NORMAL,252), WSAGetLastError()); 

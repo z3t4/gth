@@ -1245,6 +1245,10 @@ SOURCE=.\GTH.rc
 # End Source File
 # Begin Source File
 
+SOURCE=.\Ini.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\Input.cpp
 # End Source File
 # End Group
@@ -1674,6 +1678,10 @@ SOURCE=.\global_def.h
 # Begin Source File
 
 SOURCE=.\GTH.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\Ini.h
 # End Source File
 # Begin Source File
 

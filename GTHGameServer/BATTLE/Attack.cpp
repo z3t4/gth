@@ -77,7 +77,6 @@ void GTH_ProcessEventMessage_Attack()
 	int damageAttackFlag, charEvent;
 
 	g_curPC->event = GTH_EV_CHAR_ATTACK;
-	
 	g_curPC->targetIdx = MSG_ReadShort(); 
 	g_curPC->targetType = MSG_ReadByte();
 
@@ -89,13 +88,29 @@ void GTH_ProcessEventMessage_Attack()
 	g_curPC->angles[ YAW ] = angle;
 
 	charEvent = MSG_ReadByte();
-
-	
-	
+	//lucky 2012 no range hack patch 
+ 	if (g_curPC->calAttackLength != MSG_ReadShort())
+	{
+		g_logSystem->WriteToHackingLog("[HACKING_SKILL] UserID:[%s]  char:[%s] ·Tryed to No range attak with normal attack.",g_curPC->userID,g_curPC->name);
+		return;
+	}
+	//end
+	//lucky 2012 speed hack
+	bool speedhack = true;
+	if (g_curPC->calAttackDelay != MSG_ReadLong())
+ 	{
+		speedhack = false;
+ 	}
+	//end	
 	if ( g_curPC->targetType == ENTITY_NPC )
 		return;
-
-	
+	//lucky 2012 speedhack patch
+	if ( speedhack == false ) 
+	{
+		g_logSystem->WriteToHackingLog("[SPEED_HACKING] UserID:[%s] char:[%s] Tryed to speedhack ( using memory editing tools ).", g_curPC->userID, g_curPC->name); 
+		return;
+	}
+	//end
 	
 	if ( g_curPC->targetType == ENTITY_PC )
 	{
