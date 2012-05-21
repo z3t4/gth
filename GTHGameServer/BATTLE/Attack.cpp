@@ -24,10 +24,7 @@ void GTH_PC_Attack(playerCharacter_t* pc, int charEvent)
 	
 	
 	if ( GTH_IsEnableHaveDamage(pc) == FALSE)
-		return;
-	
-
-
+		return;	
 	
 	pc->resultValid = 0;
 	pc->recoveryTime = (float)pc->calAttackDelay;
@@ -62,7 +59,6 @@ void GTH_PC_Attack(playerCharacter_t* pc, int charEvent)
 	AI_SendMessage( &message,NULL );
 
 	itemIdx = GTH_PC_DecreaseDurability( pc, 0, message.data[2] );
-
 	if( (i3characterEvent_t)charEvent == GTH_EV_CHAR_ATTACK )
 		GTH_SendPCEventMessage_Attack( pc, true, pc->resultValid, itemIdx );
 
@@ -75,6 +71,18 @@ void GTH_ProcessEventMessage_Attack()
 {
 	float angle;
 	int damageAttackFlag, charEvent;
+	//lucky 2012 speed hack
+	bool speedhack = true;
+	if (g_curPC->calAttackDelay != MSG_ReadLong())
+ 	{
+		speedhack = false;
+ 	}
+	if ( speedhack == false ) 
+	{
+		g_logSystem->WriteToHackingLog("[SPEED_HACKING] UserID:[%s] char:[%s] Tryed to speedhack ( using memory editing tools ).", g_curPC->userID, g_curPC->name); 
+		return;
+	}
+	//end
 
 	g_curPC->event = GTH_EV_CHAR_ATTACK;
 	g_curPC->targetIdx = MSG_ReadShort(); 
@@ -95,23 +103,26 @@ void GTH_ProcessEventMessage_Attack()
 		return;
 	}
 	//end
-	//lucky 2012 speed hack
-	bool speedhack = true;
-	if (g_curPC->calAttackDelay != MSG_ReadLong())
- 	{
-		speedhack = false;
- 	}
-	//end	
-	if ( g_curPC->targetType == ENTITY_NPC )
-		return;
-	//lucky 2012 speedhack patch
-	if ( speedhack == false ) 
+	//lucky 2012
+	#define ATTACK_TIME_BASE	1000000
+	if ( damageAttackFlag == 1 && g_curPC->baseAttackSpeed > 0 )
 	{
-		g_logSystem->WriteToHackingLog("[SPEED_HACKING] UserID:[%s] char:[%s] Tryed to speedhack ( using memory editing tools ).", g_curPC->userID, g_curPC->name); 
-		return;
+		unsigned int dwCurrentTime = ::GetTickCount();
+		if( g_curPC->attackSpeedRate < 0 )	g_curPC->attackSpeedRate *= -1;
+		int iAttackSpeed = g_curPC->baseAttackSpeed * ( 1 + g_curPC->attackSpeedRate );
+		if ( g_curPC->normalLastAttackTime + ATTACK_TIME_BASE / ( iAttackSpeed  ) > dwCurrentTime )
+		{
+			g_logSystem->WriteToHackingLog("[SPEED_HACKING] UserID:[%s] char:[%s] Tryed to speedhack ( using memory editing tools ).", g_curPC->userID, g_curPC->name);
+			return;
+		}
+		g_curPC->normalLastAttackTime = dwCurrentTime;
 	}
 	//end
-	
+
+
+
+		if ( g_curPC->targetType == ENTITY_NPC )
+		return;
 	if ( g_curPC->targetType == ENTITY_PC )
 	{
 		if( g_curPC->targetIdx >= 0 )

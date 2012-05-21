@@ -270,7 +270,7 @@ typedef struct
 {
 	
 	
-	
+	unsigned	int					normalLastAttackTime;	
 	int					idx;				
 	int					active;				
 	int					ready;				
