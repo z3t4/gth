@@ -269,7 +269,8 @@ int CAttackProc::IsSaftTargeting()
 void CAttackProc::GTH_SendEventMessage_Attack()	
 {
 	 
-	 
+		Fx_CHARACTER_t *character;
+		character = &g_charManager->m_Characters[0];	 
 	
 	if(g_ifMng->m_autoQuestWin->m_iautoflag == AUTOQUESTSCROLL_START) return;
 	
@@ -284,14 +285,16 @@ void CAttackProc::GTH_SendEventMessage_Attack()
 	float Distance =  abs(g_pApp->m_myCharacter->position[2] -
 		                  g_cgv.syncCharacter[g_cgv.pTargetChar->ID].position[2]);	
 	if ( Distance >= 300 )
-		return;	
-	
+		return;		
 
 	
 	MSG_BeginWriting(&netMessage);
 	MSG_Clear( &netMessage );
 	{
 		MSG_WriteByte(&netMessage, CC_EVENT_ATTACK);
+		//lucky 2012 speed hack
+		MSG_WriteLong(&netMessage, g_cgv.myCharacterInfo->calAttackDelay);
+		//end
 		MSG_WriteShort(&netMessage, g_pApp->m_myCharacter->targetIdx);
 		MSG_WriteByte(&netMessage, g_pApp->m_myCharacter->targetType);
 		
@@ -304,20 +307,6 @@ void CAttackProc::GTH_SendEventMessage_Attack()
 		//lucky 2012 no range hack
 		MSG_WriteShort(&netMessage, g_cgv.myCharacterInfo->calAttackLength);
 		//end
-		//lucky 2012 speed hack
-		MSG_WriteLong(&netMessage, g_cgv.myCharacterInfo->calAttackDelay);
-		//end
-		 
-		 
-		
-		
-		
-		
-		
-		
-		
-		
-		
 		NET_SendUnreliableMessage(&gsSocket, &netMessage);
 	}
 	MSG_EndWriting( &netMessage );
@@ -538,9 +527,9 @@ int CAttackProc::GTH_ProcessEventMessage_Attack()
 
 	character->atk_playAnim			= true;
 	character->angles[ YAW ]		= angles;
+
 	character->stat_attackSpeed		= atkDelay;
 	character->event				= GTH_EV_CHAR_ATTACK;
-
 	
 	if(gcTools.IfMyCharacter(character))
 	{
